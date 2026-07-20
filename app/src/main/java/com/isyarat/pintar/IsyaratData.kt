@@ -28,9 +28,9 @@ object IsyaratData {
             id = 3,
             name = "Level 3: Pagi Tadi Saya Sarapan Ayam Goreng",
             questions = listOf(
-                Question(10, "PAGI TADI", "sign_pagi", listOf("sign_pagi", "sign_sarapan", "sign_makan", "sign_ayam")),
+                Question(10, "PAGI TADI", "sign_pagi_tadi", listOf("sign_pagi_tadi", "sign_pagi", "sign_sarapan", "sign_ayam")),
                 Question(11, "SAYA", "sign_saya", listOf("sign_saya", "sign_ibu", "sign_ayah", "sign_kakak")),
-                Question(12, "SARAPAN", "sign_sarapan", listOf("sign_sarapan", "sign_makan", "sign_pagi", "sign_goreng")),
+                Question(12, "SARAPAN", "sign_sarapan", listOf("sign_sarapan", "sign_makan", "sign_pagi_tadi", "sign_goreng")),
                 Question(13, "AYAM", "sign_ayam", listOf("sign_ayam", "sign_sayur", "sign_makan", "sign_goreng")),
                 Question(14, "GORENG", "sign_goreng", listOf("sign_goreng", "sign_makan", "sign_ayam", "sign_sayur"))
             )
@@ -52,7 +52,7 @@ object IsyaratData {
             questions = listOf(
                 Question(20, "SAYA", "sign_saya", listOf("sign_saya", "sign_ibu", "sign_ayah", "sign_kakak")),
                 Question(21, "SARAPAN", "sign_sarapan", listOf("sign_sarapan", "sign_makan", "sign_pagi", "sign_sayur")),
-                Question(22, "PAGI", "sign_pagi", listOf("sign_pagi", "sign_sarapan", "sign_makan", "sign_ayam")),
+                Question(22, "PAGI", "sign_pagi", listOf("sign_pagi", "sign_pagi_tadi", "sign_sarapan", "sign_ayam")),
                 Question(23, "MAKAN", "sign_makan", listOf("sign_makan", "sign_sarapan", "sign_ayam", "sign_sayur")),
                 Question(24, "SAYUR", "sign_sayur", listOf("sign_sayur", "sign_goreng", "sign_ayam", "sign_makan"))
             )

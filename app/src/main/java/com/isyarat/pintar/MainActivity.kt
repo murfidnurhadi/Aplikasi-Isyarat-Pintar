@@ -1,7 +1,9 @@
 package com.isyarat.pintar
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -12,6 +14,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,7 +25,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -30,7 +35,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
@@ -165,9 +173,11 @@ fun MainApp(onToggleTheme: () -> Unit, isDarkTheme: Boolean) {
         },
         floatingActionButton = {
             if (currentScreen == "beranda") {
-                FloatingActionButton(onClick = { currentScreen = "scanner" }) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = "AR Scanner")
-                }
+                ExtendedFloatingActionButton(
+                    onClick = { currentScreen = "scanner" },
+                    icon = { Icon(Icons.Default.CameraAlt, contentDescription = "AR Scanner") },
+                    text = { Text("Scan QR") }
+                )
             }
         }
     ) { padding ->
@@ -247,26 +257,63 @@ fun BerandaScreen(levels: List<Level>, onLevelClick: (Level) -> Unit) {
 
 @Composable
 fun LevelItem(level: Level, onClick: (Level) -> Unit) {
+    val context = LocalContext.current
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = level.isUnlocked) { onClick(level) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable(enabled = level.isUnlocked) { onClick(level) },
         colors = CardDefaults.cardColors(
             containerColor = if (level.isUnlocked) MaterialTheme.colorScheme.surfaceVariant else Color.Gray.copy(alpha = 0.3f)
         )
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(40.dp).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(level.id.toString())
+            // Gambar Ikon Level berdasarkan soal pertama
+            val firstQuestionImage = level.questions.firstOrNull()?.correctAnswerImage
+            val resId = if (firstQuestionImage != null) {
+                context.resources.getIdentifier(firstQuestionImage, "drawable", context.packageName)
+            } else 0
+
+            if (resId != 0 && level.isUnlocked) {
+                Image(
+                    painter = painterResource(id = resId),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(50.dp)
+                        .background(Color.White, RoundedCornerShape(8.dp))
+                        .padding(4.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .background(
+                            if (level.isUnlocked) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                            else Color.Gray.copy(alpha = 0.2f),
+                            RoundedCornerShape(8.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        level.id.toString(),
+                        fontWeight = FontWeight.Bold,
+                        color = if (level.isUnlocked) MaterialTheme.colorScheme.primary else Color.Gray
+                    )
+                }
             }
+            
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(level.name, fontWeight = FontWeight.Bold)
-                if (level.isCompleted) Text("Selesai - Skor: ${level.score}", fontSize = 12.sp)
-                else if (!level.isUnlocked) Text("Terkunci", fontSize = 12.sp)
+                if (level.isCompleted) Text("Selesai - Skor: ${level.score}", fontSize = 12.sp, color = Color(0xFF4CAF50))
+                else if (!level.isUnlocked) Text("Terkunci", fontSize = 12.sp, color = Color.Gray)
+                else Text("Siap Dimulai!", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
             }
-            Icon(imageVector = if (level.isUnlocked) Icons.Default.PlayArrow else Icons.Default.Lock, contentDescription = null)
+            Icon(
+                imageVector = if (level.isUnlocked) Icons.Default.PlayArrow else Icons.Default.Lock,
+                contentDescription = null,
+                tint = if (level.isUnlocked) MaterialTheme.colorScheme.primary else Color.Gray
+            )
         }
     }
 }
@@ -542,7 +589,7 @@ fun ScannerScreen(onBack: () -> Unit) {
                                         val commonWords = listOf(
                                             "belajar", "memasak", "makan", "minum", "sayang", "bekerja", 
                                             "ayah", "ibu", "saya", "satu", "sayur", "dapur", "sarapan", 
-                                            "pagi", "sedang", "ayam", "goreng", "kakak", "kamar", "di", "tadi"
+                                            "pagi tadi", "pagi", "sedang", "ayam", "goreng", "kakak", "kamar", "di", "tadi"
                                         )
                                         
                                         val fullText = visionText.text.lowercase()
@@ -556,7 +603,7 @@ fun ScannerScreen(onBack: () -> Unit) {
 
                                         for (keyword in commonWords) {
                                             if ("\\b$keyword\\b".toRegex().containsMatchIn(fullText)) {
-                                                detectedText = keyword
+                                                detectedText = keyword.replace(" ", "_")
                                                 return@addOnSuccessListener
                                             }
                                         }
@@ -703,23 +750,89 @@ fun RiwayatScreen(
                         Text("Belum ada data nilai", color = Color.Gray)
                     }
                 } else {
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        val recentHistory = history.takeLast(7)
-                        recentHistory.forEach { record ->
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Box(
-                                    modifier = Modifier
-                                        .width(28.dp)
-                                        .height((record.score.coerceIn(10, 100) * 1.5).dp)
-                                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(record.score.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Box(modifier = Modifier.fillMaxSize().padding(top = 8.dp)) {
+                        val recentHistory = history.takeLast(5)
+                        val primaryColor = MaterialTheme.colorScheme.primary
+                        
+                        Canvas(modifier = Modifier.fillMaxSize().padding(start = 65.dp, end = 25.dp, bottom = 20.dp, top = 10.dp)) {
+                            val canvasWidth = size.width
+                            val canvasHeight = size.height
+                            
+                            if (recentHistory.isNotEmpty()) {
+                                val points = recentHistory.mapIndexed { index, record ->
+                                    val x = (record.score / 100f) * canvasWidth
+                                    val y = if (recentHistory.size > 1) {
+                                        canvasHeight - (index.toFloat() / (recentHistory.size - 1)) * canvasHeight
+                                    } else {
+                                        canvasHeight / 2
+                                    }
+                                    Offset(x, y)
+                                }
+
+                                // Draw horizontal grid lines for each level
+                                recentHistory.forEachIndexed { index, _ ->
+                                    val y = if (recentHistory.size > 1) {
+                                        canvasHeight - (index.toFloat() / (recentHistory.size - 1)) * canvasHeight
+                                    } else {
+                                        canvasHeight / 2
+                                    }
+                                    drawLine(Color.LightGray.copy(alpha = 0.3f), Offset(0f, y), Offset(canvasWidth, y), strokeWidth = 1f)
+                                }
+
+                                // Draw vertical grid lines for scores
+                                for (i in 0..4) {
+                                    val xGrid = (i / 4f) * canvasWidth
+                                    drawLine(Color.LightGray.copy(alpha = 0.5f), Offset(xGrid, 0f), Offset(xGrid, canvasHeight), strokeWidth = 1f)
+                                }
+
+                                // Draw the line
+                                if (points.size > 1) {
+                                    for (i in 0 until points.size - 1) {
+                                        drawLine(
+                                            color = primaryColor,
+                                            start = points[i],
+                                            end = points[i + 1],
+                                            strokeWidth = 3.dp.toPx(),
+                                            cap = StrokeCap.Round
+                                        )
+                                    }
+                                }
+
+                                // Draw points
+                                points.forEach { point ->
+                                    drawCircle(primaryColor, radius = 5.dp.toPx(), center = point)
+                                    drawCircle(Color.White, radius = 2.dp.toPx(), center = point)
+                                }
                             }
+                        }
+                        
+                        // Labels Y (Level Name)
+                        Column(
+                            modifier = Modifier.fillMaxHeight().padding(bottom = 20.dp, top = 10.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            recentHistory.reversed().forEach { record ->
+                                val levelName = levels.find { it.id == record.levelId }?.name?.split(":")?.firstOrNull() ?: "Lvl ${record.levelId}"
+                                Text(
+                                    text = levelName,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(60.dp),
+                                    maxLines = 1,
+                                    textAlign = TextAlign.End
+                                )
+                            }
+                        }
+                        
+                        // Labels X (Score values)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().align(Alignment.BottomStart).padding(start = 65.dp, end = 25.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("0", fontSize = 10.sp, color = Color.Gray)
+                            Text("50", fontSize = 10.sp, color = Color.Gray)
+                            Text("100", fontSize = 10.sp, color = Color.Gray)
                         }
                     }
                 }
@@ -881,9 +994,113 @@ fun PengaturanScreen(isDarkTheme: Boolean, onToggleTheme: () -> Unit) {
 
 @Composable
 fun TentangKamiScreen() {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Tentang Isyarat Pintar", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text("Aplikasi Belajar Isyarat Khusus Tunarungu.", textAlign = TextAlign.Center)
-        Text("Kontak: support@isyaratpintar.com")
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.icon_app),
+            contentDescription = null,
+            modifier = Modifier.size(120.dp).padding(16.dp)
+        )
+        Text(
+            "Isyarat Pintar",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            "Versi 1.0.0",
+            fontSize = 14.sp,
+            color = Color.Gray
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            "Isyarat Pintar adalah platform edukasi interaktif yang dirancang khusus untuk membantu teman-teman tunarungu belajar bahasa isyarat dengan cara yang menyenangkan melalui teknologi AR (Augmented Reality).",
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        Text(
+            "Hubungi Pengembang",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.Start)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        ContactItem(
+            icon = Icons.Default.Phone,
+            label = "WhatsApp",
+            value = "091394784696",
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/6291394784696"))
+                context.startActivity(intent)
+            }
+        )
+        
+        ContactItem(
+            icon = Icons.Default.AccountCircle,
+            label = "Instagram",
+            value = "@mur.fidznx",
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://instagram.com/mur.fidznx"))
+                context.startActivity(intent)
+            }
+        )
+        
+        ContactItem(
+            icon = Icons.Default.Code,
+            label = "GitHub",
+            value = "mur.fidznx",
+            onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/murfidznx"))
+                context.startActivity(intent)
+            }
+        )
+        
+        ContactItem(
+            icon = Icons.Default.Email,
+            label = "Email",
+            value = "mur.fidznx@gmail.com",
+            onClick = {
+                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:mur.fidznx@gmail.com"))
+                context.startActivity(intent)
+            }
+        )
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        Text("© 2024 Isyarat Pintar Team", fontSize = 12.sp, color = Color.Gray)
+    }
+}
+
+@Composable
+fun ContactItem(icon: ImageVector, label: String, value: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(label, fontSize = 12.sp, color = Color.Gray)
+                Text(value, fontWeight = FontWeight.Medium)
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
+        }
     }
 }
