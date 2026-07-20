@@ -40,6 +40,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import coil.ImageLoader
+import coil.compose.AsyncImage
+import coil.compose.rememberAsyncImagePainter
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import coil.request.ImageRequest
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -190,14 +196,33 @@ fun MainApp(onToggleTheme: () -> Unit, isDarkTheme: Boolean) {
                     )
                 }
                 "scanner" -> ScannerScreen { currentScreen = "beranda" }
-                "riwayat" -> RiwayatScreen(historyState, levelsState) {
-                    historyState.clear()
-                    val reset = levelsState.mapIndexed { i, level ->
-                        level.copy(isUnlocked = i == 0, isCompleted = false, score = 0)
+                "riwayat" -> RiwayatScreen(
+                    history = historyState,
+                    levels = levelsState,
+                    onResetAll = {
+                        historyState.clear()
+                        val reset = levelsState.mapIndexed { i, level ->
+                            level.copy(isUnlocked = i == 0, isCompleted = false, score = 0)
+                        }
+                        levelsState.clear()
+                        levelsState.addAll(reset)
+                    },
+                    onDeleteLevel = { levelId ->
+                        val index = levelsState.indexOfFirst { it.id == levelId }
+                        if (index != -1) {
+                            // Reset level terpilih dan kunci level setelahnya secara berurutan
+                            for (i in index until levelsState.size) {
+                                levelsState[i] = levelsState[i].copy(
+                                    isUnlocked = i == index, // Level yang dihapus tetap terbuka untuk dicoba lagi
+                                    isCompleted = false,
+                                    score = 0
+                                )
+                            }
+                            // Hapus riwayat untuk level ini dan semua level setelahnya
+                            historyState.removeAll { it.levelId >= levelId }
+                        }
                     }
-                    levelsState.clear()
-                    levelsState.addAll(reset)
-                }
+                )
                 "pengaturan" -> PengaturanScreen(isDarkTheme, onToggleTheme)
                 "tentang" -> TentangKamiScreen()
             }
@@ -509,16 +534,30 @@ fun ScannerScreen(onBack: () -> Unit) {
                                 val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
                                 recognizer.process(image)
                                     .addOnSuccessListener { visionText ->
-                                        val keywords = listOf("belajar", "memasak", "makan", "minum", "sayang", "bekerja", "ayah", "ibu", "saya", "satu", "sayur", "dapur", "sarapan", "pagi", "sedang", "ayam", "goreng", "kakak", "kamar", "di", "tadi")
-                                        val sortedBlocks = visionText.textBlocks.sortedWith(compareBy({ it.boundingBox?.top }, { it.boundingBox?.left }))
+                                        val greetings = listOf(
+                                            "apa kabar", "assalamualaikum", "halo", "sampai jumpa", 
+                                            "selamat pagi", "selamat siang", "selamat sore", "selamat malam",
+                                            "waalaikumsalam", "senang berkenalan"
+                                        )
+                                        val commonWords = listOf(
+                                            "belajar", "memasak", "makan", "minum", "sayang", "bekerja", 
+                                            "ayah", "ibu", "saya", "satu", "sayur", "dapur", "sarapan", 
+                                            "pagi", "sedang", "ayam", "goreng", "kakak", "kamar", "di", "tadi"
+                                        )
+                                        
+                                        val fullText = visionText.text.lowercase()
+                                        
+                                        for (keyword in greetings) {
+                                            if ("\\b$keyword\\b".toRegex().containsMatchIn(fullText)) {
+                                                detectedText = "greeting_" + keyword.replace(" ", "_")
+                                                return@addOnSuccessListener
+                                            }
+                                        }
 
-                                        for (block in sortedBlocks) {
-                                            val blockText = block.text.lowercase()
-                                            for (keyword in keywords) {
-                                                if ("\\b$keyword\\b".toRegex().containsMatchIn(blockText)) {
-                                                    detectedText = keyword
-                                                    return@addOnSuccessListener
-                                                }
+                                        for (keyword in commonWords) {
+                                            if ("\\b$keyword\\b".toRegex().containsMatchIn(fullText)) {
+                                                detectedText = keyword
+                                                return@addOnSuccessListener
                                             }
                                         }
                                     }
@@ -562,8 +601,9 @@ fun ScannerScreen(onBack: () -> Unit) {
                     color = Color.Black.copy(alpha = 0.7f),
                     shape = RoundedCornerShape(8.dp)
                 ) {
+                    val displayText = detectedText.replace("greeting_", "").replace("_", " ")
                     Text(
-                        text = "Terdeteksi: ${detectedText.uppercase()}",
+                        text = "Terdeteksi: ${displayText.uppercase()}",
                         color = Color.White,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         fontWeight = FontWeight.Bold,
@@ -572,14 +612,36 @@ fun ScannerScreen(onBack: () -> Unit) {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 if (detectedText.isNotEmpty()) {
-                    val resId = context.resources.getIdentifier("sign_$detectedText", "drawable", context.packageName)
+                    val resId = if (detectedText.startsWith("greeting_")) {
+                        val name = "bahasa_isyarat_" + detectedText.replace("greeting_", "")
+                            .replace("sampai_jumpa", "sampai_jumpa_lagi")
+                            .replace("senang_berkenalan", "senang_berkenalan_denganmu")
+                        context.resources.getIdentifier(name, "raw", context.packageName)
+                    } else {
+                        context.resources.getIdentifier("sign_$detectedText", "drawable", context.packageName)
+                    }
                     if (resId != 0) {
+                        val imageLoader = ImageLoader.Builder(context)
+                            .components {
+                                if (android.os.Build.VERSION.SDK_INT >= 28) {
+                                    add(ImageDecoderDecoder.Factory())
+                                } else {
+                                    add(GifDecoder.Factory())
+                                }
+                            }
+                            .build()
+
                         Image(
-                            painter = painterResource(id = resId),
+                            painter = rememberAsyncImagePainter(
+                                ImageRequest.Builder(context).data(data = resId).apply(block = fun ImageRequest.Builder.() {
+                                    crossfade(true)
+                                }).build(),
+                                imageLoader = imageLoader
+                            ),
                             contentDescription = null,
                             modifier = Modifier
                                 .offset(y = translateY.dp)
-                                .size(160.dp)
+                                .size(200.dp) // Ukuran sedikit lebih besar untuk video/gif
                         )
                     }
                 }
@@ -602,9 +664,15 @@ fun ScannerScreen(onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RiwayatScreen(history: List<HistoryRecord>, levels: List<Level>, onReset: () -> Unit) {
-    var showConfirm1 by remember { mutableStateOf(false) }
-    var showConfirm2 by remember { mutableStateOf(false) }
+fun RiwayatScreen(
+    history: List<HistoryRecord>,
+    levels: List<Level>,
+    onResetAll: () -> Unit,
+    onDeleteLevel: (Int) -> Unit
+) {
+    var showConfirmAll1 by remember { mutableStateOf(false) }
+    var showConfirmAll2 by remember { mutableStateOf(false) }
+    var levelToDelete by remember { mutableStateOf<Int?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -613,8 +681,8 @@ fun RiwayatScreen(history: List<HistoryRecord>, levels: List<Level>, onReset: ()
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Riwayat Nilai", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            IconButton(onClick = { showConfirm1 = true }) { 
-                Icon(Icons.Default.Delete, null, tint = Color.Red) 
+            IconButton(onClick = { showConfirmAll1 = true }) { 
+                Icon(Icons.Default.DeleteForever, null, tint = Color.Red) 
             }
         }
         
@@ -643,7 +711,6 @@ fun RiwayatScreen(history: List<HistoryRecord>, levels: List<Level>, onReset: ()
                         val recentHistory = history.takeLast(7)
                         recentHistory.forEach { record ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                // Visualisasi Bar
                                 Box(
                                     modifier = Modifier
                                         .width(28.dp)
@@ -668,42 +735,65 @@ fun RiwayatScreen(history: List<HistoryRecord>, levels: List<Level>, onReset: ()
                     headlineText = { Text(name) },
                     supportingText = { Text("Skor: ${record.score}") },
                     leadingContent = { Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFD700)) },
+                    trailingContent = {
+                        IconButton(onClick = { levelToDelete = record.levelId }) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "Hapus Level", tint = Color.Gray)
+                        }
+                    },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
             }
         }
     }
     
-    if (showConfirm1) {
+    // Dialog Konfirmasi Hapus Spesifik Level
+    if (levelToDelete != null) {
         AlertDialog(
-            onDismissRequest = { showConfirm1 = false },
-            title = { Text("Hapus Riwayat?") },
-            text = { Text("Apakah kamu yakin ingin menghapus semua riwayat nilai?") },
+            onDismissRequest = { levelToDelete = null },
+            title = { Text("Reset Level ${levelToDelete}?") },
+            text = { Text("Menghapus riwayat level ini akan mengunci level-level setelahnya. Lanjutkan?") },
             confirmButton = {
                 TextButton(onClick = { 
-                    showConfirm1 = false
-                    showConfirm2 = true 
-                }) { Text("Ya") }
+                    onDeleteLevel(levelToDelete!!)
+                    levelToDelete = null 
+                }) { Text("Ya, Reset", color = Color.Red) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm1 = false }) { Text("Batal") }
+                TextButton(onClick = { levelToDelete = null }) { Text("Batal") }
             }
         )
     }
     
-    if (showConfirm2) {
+    if (showConfirmAll1) {
         AlertDialog(
-            onDismissRequest = { showConfirm2 = false },
+            onDismissRequest = { showConfirmAll1 = false },
+            title = { Text("Hapus Semua Riwayat?") },
+            text = { Text("Apakah kamu yakin ingin menghapus semua riwayat nilai?") },
+            confirmButton = {
+                TextButton(onClick = { 
+                    showConfirmAll1 = false
+                    showConfirmAll2 = true 
+                }) { Text("Ya") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmAll1 = false }) { Text("Batal") }
+            }
+        )
+    }
+    
+    if (showConfirmAll2) {
+        AlertDialog(
+            onDismissRequest = { showConfirmAll2 = false },
             title = { Text("Hapus Permanen?") },
             text = { Text("Data yang dihapus tidak bisa dikembalikan!") },
             confirmButton = {
                 TextButton(onClick = { 
-                    onReset()
-                    showConfirm2 = false 
-                }) { Text("HAPUS", color = Color.Red) }
+                    onResetAll()
+                    showConfirmAll2 = false 
+                }) { Text("HAPUS SEMUA", color = Color.Red) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm2 = false }) { Text("Batal") }
+                TextButton(onClick = { showConfirmAll2 = false }) { Text("Batal") }
             }
         )
     }
@@ -712,9 +802,12 @@ fun RiwayatScreen(history: List<HistoryRecord>, levels: List<Level>, onReset: ()
 @Composable
 fun PengaturanScreen(isDarkTheme: Boolean, onToggleTheme: () -> Unit) {
     val context = LocalContext.current
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Pengaturan", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
+        
+        Text("Tampilan", fontSize = 14.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -733,9 +826,18 @@ fun PengaturanScreen(isDarkTheme: Boolean, onToggleTheme: () -> Unit) {
                     }
                     Switch(checked = isDarkTheme, onCheckedChange = { onToggleTheme() })
                 }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Text("Data & Aplikasi", fontSize = 14.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable {
                         try {
@@ -751,9 +853,26 @@ fun PengaturanScreen(isDarkTheme: Boolean, onToggleTheme: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = Color.Red)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Hapus Cache", color = Color.Red)
+                        Text("Bersihkan Cache", color = Color.Red)
                     }
                     Icon(Icons.Default.ChevronRight, contentDescription = null)
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        Toast.makeText(context, "Versi 1.0.0 (Android 16 Optimized)", Toast.LENGTH_SHORT).show()
+                    },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Versi Aplikasi")
+                    }
+                    Text("1.0.0", color = Color.Gray)
                 }
             }
         }
