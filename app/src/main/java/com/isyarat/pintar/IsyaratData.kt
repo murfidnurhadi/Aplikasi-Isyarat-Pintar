@@ -6,6 +6,7 @@ object IsyaratData {
             id = 1,
             name = "Level 1: Ayah Saya Sedang Bekerja",
             isUnlocked = true,
+            icon = "level_satu",
             questions = listOf(
                 Question(1, "AYAH", "sign_ayah", listOf("sign_ayah", "sign_ibu", "sign_saya", "sign_kakak")),
                 Question(2, "SAYA", "sign_saya", listOf("sign_saya", "sign_ibu", "sign_ayah", "sign_kakak")),
@@ -16,6 +17,8 @@ object IsyaratData {
         Level(
             id = 2,
             name = "Level 2: Ibu Sedang Memasak di Dapur",
+            isUnlocked = false,
+            icon = "level_dua",
             questions = listOf(
                 Question(5, "IBU", "sign_ibu", listOf("sign_ayah", "sign_ibu", "sign_saya", "sign_kakak")),
                 Question(6, "SEDANG", "sign_sedang", listOf("sign_sedang", "sign_belajar", "sign_bekerja", "sign_makan")),
@@ -27,6 +30,8 @@ object IsyaratData {
         Level(
             id = 3,
             name = "Level 3: Pagi Saya Sarapan Ayam Goreng",
+            isUnlocked = false,
+            icon = "level_tiga",
             questions = listOf(
                 Question(10, "PAGI", "sign_pagi", listOf("sign_pagi", "sign_sarapan", "sign_ayam", "sign_goreng")),
                 Question(11, "SAYA", "sign_saya", listOf("sign_saya", "sign_ibu", "sign_ayah", "sign_kakak")),
@@ -38,6 +43,8 @@ object IsyaratData {
         Level(
             id = 4,
             name = "Level 4: Kakak Sedang Belajar di Kamar",
+            isUnlocked = false,
+            icon = "level_empat",
             questions = listOf(
                 Question(15, "KAKAK", "sign_kakak", listOf("sign_kakak", "sign_ayah", "sign_ibu", "sign_saya")),
                 Question(16, "SEDANG", "sign_sedang", listOf("sign_sedang", "sign_belajar", "sign_bekerja", "sign_makan")),
@@ -49,6 +56,8 @@ object IsyaratData {
         Level(
             id = 5,
             name = "Level 5: Saya Sarapan Pagi Makan Sayur",
+            isUnlocked = false,
+            icon = "level_lima",
             questions = listOf(
                 Question(20, "SAYA", "sign_saya", listOf("sign_saya", "sign_ibu", "sign_ayah", "sign_kakak")),
                 Question(21, "SARAPAN", "sign_sarapan", listOf("sign_sarapan", "sign_makan", "sign_pagi", "sign_sayur")),

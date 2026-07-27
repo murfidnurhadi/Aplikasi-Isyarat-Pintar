@@ -29,22 +29,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
@@ -55,7 +55,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import coil.ImageLoader
-import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
@@ -98,12 +97,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun SplashScreen(onTimeout: () -> Unit) {
-    var visible by remember { mutableStateOf(false) }
+    var startAnimation by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        visible = true
+    LaunchedEffect(key1 = true) {
+        startAnimation = true
         delay(2000)
         onTimeout()
     }
@@ -115,7 +115,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         AnimatedVisibility(
-            visible = visible,
+            visible = startAnimation,
             enter = slideInVertically(
                 initialOffsetY = { it },
                 animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing)
@@ -125,7 +125,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
                 Image(
                     painter = painterResource(id = R.drawable.icon_app),
                     contentDescription = "Logo",
-                    modifier = Modifier.size(180.dp)
+                    modifier = Modifier.size(200.dp)
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
@@ -149,181 +149,206 @@ fun MainApp() {
     LaunchedEffect(Unit) {
         val themeIndex = sharedPreferences.getInt("theme_index", 0)
         updateThemeColors(
-            ThemeColors.getAll().getOrElse(themeIndex) { ThemeColors.Palette3 }
+            ThemeColors.getAll().getOrElse(themeIndex) { ThemeColors.PaletteLight }
         )
     }
 
-    var currentScreen by remember { mutableStateOf("beranda") }
-    var selectedLevel by remember { mutableStateOf<Level?>(null) }
-    val levelsState = remember { mutableStateListOf<Level>().apply { addAll(IsyaratData.levels) } }
-    val historyState = remember { mutableStateListOf<HistoryRecord>() }
+    var currentScreen by rememberSaveable { mutableStateOf("beranda") }
+    var selectedLevel by rememberSaveable { mutableStateOf<Level?>(null) }
+    val levelsState = rememberSaveable(key = "levels_v3", saver = listSaver<SnapshotStateList<Level>, Level>(
+        save = { it.toList() },
+        restore = { it.toMutableStateList() }
+    )) { IsyaratData.levels.toMutableStateList() }
 
-    var restartKey by remember { mutableStateOf(0) }
+    val historyState = rememberSaveable(saver = listSaver<SnapshotStateList<HistoryRecord>, HistoryRecord>(
+        save = { it.toList() },
+        restore = { it.toMutableStateList() }
+    )) { mutableStateListOf<HistoryRecord>() }
+
+    var restartKey by rememberSaveable { mutableStateOf(0) }
+    
+    var fabVisible by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(currentScreen) {
+        if (currentScreen == "beranda") {
+            delay(1000) // Selisih 1 detik
+            fabVisible = true
+        } else {
+            fabVisible = false
+        }
+    }
 
     key(restartKey) {
-        Scaffold(
-            containerColor = HH_Background,
-            topBar = {
-                if (currentScreen != "scanner") {
-                    CenterAlignedTopAppBar(
-                        title = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.icon_app),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(32.dp)
+        Box(modifier = Modifier.fillMaxSize().background(HH_Background)) {
+            // Global Background Image with 20% Alpha - Fills entire screen
+            Image(
+                painter = painterResource(id = R.drawable.background_app),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(0.2f)
+            )
+
+            Scaffold(
+                containerColor = Color.Transparent,
+                topBar = {
+                    if (currentScreen != "scanner" && currentScreen != "quiz") {
+                        val configuration = LocalConfiguration.current
+                        val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+                        if (!(currentScreen == "beranda" && isLandscape)) {
+                            CenterAlignedTopAppBar(
+                                title = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.icon_app),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Isyarat Pintar", fontWeight = FontWeight.ExtraBold, color = HH_Headline)
+                                    }
+                                },
+                                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                                    containerColor = Color.Transparent,
+                                    titleContentColor = HH_Headline
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    "ISYARAT PINTAR",
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = HH_Headline,
-                                    letterSpacing = 2.sp
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                            containerColor = HH_Background
-                        ),
-                        navigationIcon = {
-                            if (currentScreen != "beranda") {
-                                IconButton(onClick = { 
-                                    if (currentScreen == "tentang") currentScreen = "pengaturan"
-                                    else currentScreen = "beranda" 
-                                }) {
-                                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = HH_Headline)
+                            )
+                        }
+                    }
+                },
+                bottomBar = {
+                    if (currentScreen != "scanner" && currentScreen != "quiz") {
+                        val configuration = LocalConfiguration.current
+                        val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+                        NavigationBar(
+                            containerColor = HH_Secondary,
+                            tonalElevation = 8.dp,
+                            modifier = Modifier
+                                .height(if (isLandscape) 64.dp else 80.dp)
+                                .border(width = 2.dp, color = HH_Stroke, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                        ) {
+                            NavigationBarItem(
+                                selected = currentScreen == "beranda",
+                                onClick = { currentScreen = "beranda" },
+                                icon = { Icon(Icons.Rounded.Home, null) },
+                                label = { Text("Beranda", fontWeight = FontWeight.Bold, fontSize = if (isLandscape) 11.sp else 14.sp) },
+                                colors = NavigationBarItemDefaults.colors(selectedIconColor = HH_Button, unselectedIconColor = HH_Headline, indicatorColor = HH_Button.copy(alpha = 0.2f))
+                            )
+                            NavigationBarItem(
+                                selected = currentScreen == "riwayat",
+                                onClick = { currentScreen = "riwayat" },
+                                icon = { Icon(Icons.Rounded.History, null) },
+                                label = { Text("Riwayat", fontWeight = FontWeight.Bold, fontSize = if (isLandscape) 11.sp else 14.sp) },
+                                colors = NavigationBarItemDefaults.colors(selectedIconColor = HH_Button, unselectedIconColor = HH_Headline, indicatorColor = HH_Button.copy(alpha = 0.2f))
+                            )
+                            NavigationBarItem(
+                                selected = currentScreen == "pengaturan",
+                                onClick = { currentScreen = "pengaturan" },
+                                icon = { Icon(Icons.Rounded.Settings, null) },
+                                label = { Text("Pengaturan", fontWeight = FontWeight.Bold, fontSize = if (isLandscape) 11.sp else 14.sp) },
+                                colors = NavigationBarItemDefaults.colors(selectedIconColor = HH_Button, unselectedIconColor = HH_Headline, indicatorColor = HH_Button.copy(alpha = 0.2f))
+                            )
+                        }
+                    }
+                },
+                floatingActionButton = {
+                    if (currentScreen == "beranda") {
+                        AnimatedVisibility(
+                            visible = fabVisible,
+                            enter = slideInVertically(
+                                initialOffsetY = { it },
+                                animationSpec = tween(1000, easing = FastOutSlowInEasing)
+                            ) + fadeIn(animationSpec = tween(1000)),
+                            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                        ) {
+                            FloatingActionButton(
+                                onClick = { currentScreen = "scanner" },
+                                containerColor = HH_Button,
+                                contentColor = HH_ButtonText,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.border(2.dp, HH_Stroke, RoundedCornerShape(16.dp))
+                            ) {
+                                Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.QrCode,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Scanner AR", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
                                 }
                             }
                         }
-                    )
-                }
-            },
-            bottomBar = {
-                if (currentScreen != "scanner" && currentScreen != "kuis") {
-                    val navBarColor = if (HH_Background.luminance() < 0.5f) HH_Background else HH_Headline
-                    NavigationBar(
-                        containerColor = navBarColor,
-                        modifier = Modifier.border(3.dp, HH_Stroke, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                    ) {
-                        NavigationBarItem(
-                            selected = currentScreen == "beranda",
-                            onClick = { currentScreen = "beranda" },
-                            label = { Text("Beranda", fontWeight = FontWeight.Bold, color = Color.White) },
-                            icon = { Icon(Icons.Default.Home, contentDescription = null, tint = Color.White) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.White,
-                                selectedTextColor = Color.White,
-                                unselectedIconColor = Color.White,
-                                unselectedTextColor = Color.White,
-                                indicatorColor = HH_Secondary
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = currentScreen == "riwayat",
-                            onClick = { currentScreen = "riwayat" },
-                            label = { Text("Riwayat", fontWeight = FontWeight.Bold, color = Color.White) },
-                            icon = { Icon(Icons.Default.History, contentDescription = null, tint = Color.White) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.White,
-                                selectedTextColor = Color.White,
-                                unselectedIconColor = Color.White,
-                                unselectedTextColor = Color.White,
-                                indicatorColor = HH_Secondary
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = currentScreen == "pengaturan",
-                            onClick = { currentScreen = "pengaturan" },
-                            label = { Text("Pengaturan", fontWeight = FontWeight.Bold, color = Color.White) },
-                            icon = { Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.White,
-                                selectedTextColor = Color.White,
-                                unselectedIconColor = Color.White,
-                                unselectedTextColor = Color.White,
-                                indicatorColor = HH_Secondary
-                            )
-                        )
                     }
                 }
-            },
-            floatingActionButton = {
-                if (currentScreen == "beranda") {
-                    ExtendedFloatingActionButton(
-                        onClick = { currentScreen = "scanner" },
-                        containerColor = HH_Button,
-                        contentColor = HH_ButtonText,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.border(3.dp, HH_Stroke, RoundedCornerShape(16.dp)),
-                        icon = { Icon(Icons.Default.CameraAlt, contentDescription = "AR Scanner") },
-                        text = { Text("Scan Text", fontWeight = FontWeight.ExtraBold) }
-                    )
-                }
-            }
-        ) { padding ->
-            Box(modifier = Modifier.padding(padding)) {
-                when (currentScreen) {
-                    "beranda" -> BerandaScreen(levelsState) { level ->
-                        selectedLevel = level
-                        currentScreen = "kuis"
-                    }
-                    "kuis" -> selectedLevel?.let { level ->
-                        QuizScreen(
-                            level = level,
-                            onFinished = { score ->
-                                val index = levelsState.indexOfFirst { it.id == level.id }
-                                if (index != -1) {
-                                    levelsState[index] = levelsState[index].copy(isCompleted = true, score = score)
-                                    historyState.add(HistoryRecord(levelId = level.id, score = score))
-                                    // Buka level selanjutnya jika skor lebih dari 0
-                                    if (index + 1 < levelsState.size && score > 0) {
-                                        levelsState[index + 1] = levelsState[index + 1].copy(isUnlocked = true)
-                                    }
-                                }
-                                currentScreen = "beranda"
+            ) { padding ->
+                Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                    when (currentScreen) {
+                        "beranda" -> BerandaScreen(levelsState) { level ->
+                            selectedLevel = level
+                            currentScreen = "quiz"
+                        }
+                        "quiz" -> {
+                            selectedLevel?.let { level ->
+                                QuizScreen(
+                                    level = level,
+                                    onFinished = { finalScore ->
+                                        historyState.add(HistoryRecord(levelId = level.id, score = finalScore))
+                                        
+                                        val levelIndex = levelsState.indexOfFirst { it.id == level.id }
+                                        if (levelIndex != -1) {
+                                            levelsState[levelIndex] = levelsState[levelIndex].copy(
+                                                score = maxOf(levelsState[levelIndex].score, finalScore),
+                                                isCompleted = true
+                                            )
+                                            if (finalScore > 10 && levelIndex + 1 < levelsState.size) {
+                                                levelsState[levelIndex + 1] = levelsState[levelIndex + 1].copy(isUnlocked = true)
+                                            }
+                                        }
+                                        currentScreen = "beranda"
+                                    },
+                                    onBack = { currentScreen = "beranda" }
+                                )
+                            }
+                        }
+                        "scanner" -> ScannerScreen(onBack = { currentScreen = "beranda" })
+                        "riwayat" -> RiwayatScreen(
+                            history = historyState,
+                            levels = levelsState,
+                            onResetAll = {
+                                historyState.clear()
+                                levelsState.clear()
+                                levelsState.addAll(IsyaratData.levels)
                             },
-                            onBack = { currentScreen = "beranda" }
-                        )
-                    }
-                    "scanner" -> ScannerScreen { currentScreen = "beranda" }
-                    "riwayat" -> RiwayatScreen(
-                        history = historyState,
-                        levels = levelsState,
-                        onResetAll = {
-                            historyState.clear()
-                            val reset = levelsState.mapIndexed { i, level ->
-                                level.copy(isUnlocked = i == 0, isCompleted = false, score = 0)
-                            }
-                            levelsState.clear()
-                            levelsState.addAll(reset)
-                        },
-                        onDeleteRecord = { record ->
-                            historyState.remove(record)
-                            val levelIndex = levelsState.indexOfFirst { it.id == record.levelId }
-                            if (levelIndex != -1) {
-                                val lastRecord = historyState.filter { it.levelId == record.levelId }.lastOrNull()
-                                val newScore = lastRecord?.score ?: 0
-                                
-                                levelsState[levelIndex] = levelsState[levelIndex].copy(
-                                    score = newScore,
-                                    isCompleted = lastRecord != null
-                                )
-                                
-                                // Re-evaluasi status kunci level selanjutnya
-                                if (levelIndex + 1 < levelsState.size) {
-                                    if (newScore == 0) {
-                                        levelsState[levelIndex + 1] = levelsState[levelIndex + 1].copy(isUnlocked = false)
-                                    } else {
-                                        levelsState[levelIndex + 1] = levelsState[levelIndex + 1].copy(isUnlocked = true)
+                            onDeleteRecord = { record ->
+                                historyState.remove(record)
+                                val levelIndex = levelsState.indexOfFirst { it.id == record.levelId }
+                                if (levelIndex != -1) {
+                                    val levelHistory = historyState.filter { it.levelId == record.levelId }
+                                    val maxScore = levelHistory.maxOfOrNull { it.score } ?: 0
+                                    
+                                    levelsState[levelIndex] = levelsState[levelIndex].copy(
+                                        score = maxScore,
+                                        isCompleted = levelHistory.isNotEmpty()
+                                    )
+                                    
+                                    if (levelIndex + 1 < levelsState.size) {
+                                        levelsState[levelIndex + 1] = levelsState[levelIndex + 1].copy(
+                                            isUnlocked = maxScore > 10
+                                        )
                                     }
                                 }
                             }
+                        )
+                        "pengaturan" -> {
+                            PengaturanScreen(onAboutClick = { currentScreen = "tentang" }) {
+                                restartKey++
+                            }
                         }
-                    )
-                    "pengaturan" -> PengaturanScreen({ currentScreen = "tentang" }) {
-                        restartKey++
+                        "tentang" -> TentangKamiScreen()
                     }
-                    "tentang" -> TentangKamiScreen()
                 }
             }
         }
@@ -332,14 +357,50 @@ fun MainApp() {
 
 @Composable
 fun BerandaScreen(levels: List<Level>, onLevelClick: (Level) -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Halo Sobat Isyarat", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = HH_Headline)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Daftar Level", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = HH_Headline)
-        Spacer(modifier = Modifier.height(12.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(levels) { level ->
-                LevelItem(level, onLevelClick)
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        visible = true
+    }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(
+            initialOffsetY = { it / 2 },
+            animationSpec = tween(1000, easing = LinearOutSlowInEasing)
+        ) + fadeIn(animationSpec = tween(1000))
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(if (isLandscape) 8.dp else 16.dp)) {
+            if (isLandscape) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                    Image(
+                        painter = painterResource(id = R.drawable.icon_app),
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Isyarat Pintar", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = HH_Headline)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text("Halo, Ayo Pilih Permainanmu!", fontSize = 14.sp, color = HH_Headline.copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
+                }
+            } else {
+                Text("Halo Teman-Teman!", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = HH_Headline)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Ayo Pilih Permainanmu!", fontSize = 18.sp, color = HH_Headline.copy(alpha = 0.8f))
+            }
+            Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 12.dp))
+            
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(if (isLandscape) 2 else 1),
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(levels) { level ->
+                    LevelItem(level, onLevelClick)
+                }
             }
         }
     }
@@ -351,30 +412,30 @@ fun LevelItem(level: Level, onClick: (Level) -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(3.dp, HH_Stroke, RoundedCornerShape(20.dp))
+            .border(3.dp, HH_Stroke, RoundedCornerShape(24.dp))
             .clickable(enabled = level.isUnlocked) { onClick(level) },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (level.isUnlocked) HH_Secondary else HH_Background.copy(alpha = 0.5f)
+            containerColor = if (level.isUnlocked) HH_Secondary else HH_Background
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (level.isUnlocked) 8.dp else 0.dp)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Gambar Ikon Level berdasarkan soal pertama
-            val firstQuestionImage = level.questions.firstOrNull()?.correctAnswerImage
-            val resId = if (firstQuestionImage != null) {
-                context.resources.getIdentifier(firstQuestionImage, "drawable", context.packageName)
+            // Gambar Ikon Level berdasarkan level.icon
+            val iconName = level.icon
+            val resId = if (iconName.isNotEmpty()) {
+                context.resources.getIdentifier(iconName, "drawable", context.packageName)
             } else 0
 
             if (resId != 0 && level.isUnlocked) {
                 Image(
                     painter = painterResource(id = resId),
                     contentDescription = null,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(60.dp)
+                        .size(80.dp)
                         .background(HH_Background, RoundedCornerShape(12.dp))
                         .border(2.dp, HH_Stroke, RoundedCornerShape(12.dp))
-                        .padding(4.dp)
                 )
             } else {
                 Box(
@@ -382,16 +443,15 @@ fun LevelItem(level: Level, onClick: (Level) -> Unit) {
                         .size(60.dp)
                         .background(
                             if (level.isUnlocked) HH_Button.copy(alpha = 0.2f)
-                            else HH_Stroke.copy(alpha = 0.1f),
+                            else HH_Headline.copy(alpha = 0.1f),
                             RoundedCornerShape(12.dp)
-                        )
-                        .border(2.dp, HH_Stroke, RoundedCornerShape(12.dp)),
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        if (level.isUnlocked) Icons.Default.PlayArrow else Icons.Default.Lock,
+                        if (level.isUnlocked) Icons.Rounded.PlayArrow else Icons.Rounded.Lock,
                         contentDescription = null,
-                        tint = if (level.isUnlocked) HH_Headline else HH_Stroke.copy(alpha = 0.3f),
+                        tint = if (level.isUnlocked) HH_Headline else HH_Headline.copy(alpha = 0.4f),
                         modifier = Modifier.size(32.dp)
                     )
                 }
@@ -400,25 +460,26 @@ fun LevelItem(level: Level, onClick: (Level) -> Unit) {
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(level.name, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = HH_Headline)
-                if (level.isCompleted) Text("Skor: ${level.score}", fontSize = 14.sp, color = HH_Headline, fontWeight = FontWeight.Bold)
+                if (level.isCompleted) Text("Skor: ${level.score}", fontSize = 14.sp, color = HH_Headline.copy(alpha = 0.8f))
                 else if (!level.isUnlocked) Text("Terkunci", fontSize = 14.sp, color = HH_Headline.copy(alpha = 0.6f))
                 else Text("Ayo Mulai!", fontSize = 14.sp, color = HH_Button, fontWeight = FontWeight.Bold)
             }
             if (level.isCompleted) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = HH_Button, modifier = Modifier.size(28.dp))
+                Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = HH_Button, modifier = Modifier.size(28.dp))
             }
         }
     }
 }
-
 @Composable
 fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
-    var currentQuestionIndex by remember { mutableStateOf(0) }
-    var score by remember { mutableStateOf(0) }
-    var showFinalDialog by remember { mutableStateOf(false) }
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    var currentQuestionIndex by rememberSaveable { mutableStateOf(0) }
+    var score by rememberSaveable { mutableStateOf(0) }
+    var showFinalDialog by rememberSaveable { mutableStateOf(false) }
     var shakingIndex by remember { mutableStateOf<Int?>(null) }
     var isShakingCorrect by remember { mutableStateOf(true) }
-    var hasMistakeInCurrentLevel by remember { mutableStateOf(false) }
+    var hasMistakeInCurrentLevel by rememberSaveable { mutableStateOf(false) }
     
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -454,7 +515,7 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
             modifier = Modifier.border(4.dp, HH_Stroke, RoundedCornerShape(28.dp)),
             title = {
                     Text(
-                        if (isPerfect) "Luar Biasa!" else "Coba Lagi",
+                        if (isPerfect) "HEBAT SEKALI!" else "YUK, COBA LAGI!",
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
                         fontSize = 32.sp,
@@ -502,8 +563,8 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                 modifier = Modifier
                                     .size(180.dp)
                                     .scale(scale)
-                                    .border(3.dp, HH_Stroke, RoundedCornerShape(20.dp))
-                                    .background(Color.White, RoundedCornerShape(20.dp))
+                                    .border(3.dp, HH_Stroke, RoundedCornerShape(24.dp))
+                                    .background(Color.White, RoundedCornerShape(24.dp))
                                     .padding(8.dp)
                             )
                         }
@@ -536,120 +597,250 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(HH_Background).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = HH_Headline)
-            }
-            Text("Pertanyaan ${currentQuestionIndex + 1}/${level.questions.size}", 
-                modifier = Modifier.weight(1f), 
-                textAlign = TextAlign.Center, 
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 18.sp,
-                color = HH_Headline
-            )
-            Spacer(modifier = Modifier.width(48.dp))
-        }
-        
-        LinearProgressIndicator(
-            progress = (currentQuestionIndex + 1).toFloat() / level.questions.size,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(16.dp)
-                .padding(vertical = 4.dp)
-                .border(2.dp, HH_Stroke, RoundedCornerShape(8.dp)),
-            color = HH_Button,
-            trackColor = HH_Secondary
-        )
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(3.dp, HH_Stroke, RoundedCornerShape(24.dp)),
-            colors = CardDefaults.cardColors(containerColor = HH_Secondary),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Text(
-                currentQuestion.text,
-                fontSize = 42.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = HH_Headline,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(32.dp)
-            )
-        }
-        
-        Text("Pilih Gambar yang Benar:", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = HH_Headline, modifier = Modifier.padding(top = 24.dp))
-        Spacer(modifier = Modifier.height(16.dp))
-
-        LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1f)) {
-            items(shuffledOptions.size) { index ->
-                val option = shuffledOptions[index]
-                val resId = context.resources.getIdentifier(option, "drawable", context.packageName)
-                
-                val translationX = if (shakingIndex == index) shakeAnim.value else 0f
-
-                Card(
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .aspectRatio(1f)
-                        .offset(x = translationX.dp)
-                        .border(
-                            width = 3.dp,
-                            color = when {
-                                shakingIndex == index && isShakingCorrect -> HH_Button
-                                shakingIndex == index && !isShakingCorrect -> HH_Tertiary
-                                else -> HH_Stroke
-                            },
-                            shape = RoundedCornerShape(20.dp)
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isLandscape) {
+            Row(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                // Sisi Kiri: Soal
+                Column(modifier = Modifier.weight(1f).padding(end = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Rounded.ArrowBack, contentDescription = null, tint = HH_Headline)
+                        }
+                        Text("Pertanyaan ${currentQuestionIndex + 1}/${level.questions.size}", 
+                            modifier = Modifier.weight(1f), 
+                            textAlign = TextAlign.Center, 
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 18.sp,
+                            color = HH_Headline
                         )
-                        .clickable {
-                            if (shakingIndex != null) return@clickable
-                            
-                            val isCorrect = option == currentQuestion.correctAnswerImage
-                            shakingIndex = index
-                            isShakingCorrect = isCorrect
-                            
-                            if (!isCorrect) {
-                                hasMistakeInCurrentLevel = true
-                                score = (score - 5).coerceAtLeast(0) 
-                            } else {
-                                score += (100 / level.questions.size)
-                            }
-                            
-                            scope.launch {
-                                delay(if (isCorrect) 150 else 800)
-                                shakingIndex = null
-                                
-                                if (currentQuestionIndex < level.questions.size - 1) {
-                                    currentQuestionIndex++
-                                } else {
-                                    if (!hasMistakeInCurrentLevel && isCorrect) {
-                                        score = 100
-                                    } else {
-                                        score = score.coerceAtMost(95)
+                    }
+                    
+                    LinearProgressIndicator(
+                        progress = (currentQuestionIndex + 1).toFloat() / level.questions.size,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(12.dp)
+                            .padding(vertical = 4.dp)
+                            .border(2.dp, HH_Stroke, RoundedCornerShape(8.dp)),
+                        color = HH_Button,
+                        trackColor = HH_Secondary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .border(3.dp, HH_Stroke, RoundedCornerShape(24.dp)),
+                        colors = CardDefaults.cardColors(containerColor = HH_Secondary),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                            Text(
+                                currentQuestion.text,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = HH_Headline,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                // Sisi Kanan: Pilihan Jawaban
+                Column(modifier = Modifier.weight(1.2f)) {
+                    Text("Pilih Gambar yang Benar:", fontSize = 14.sp, color = HH_Headline, modifier = Modifier.padding(bottom = 8.dp))
+                    LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.fillMaxSize()) {
+                        items(shuffledOptions.size) { index ->
+                            val option = shuffledOptions[index]
+                            val resId = context.resources.getIdentifier(option, "drawable", context.packageName)
+                            val translationX = if (shakingIndex == index) shakeAnim.value else 0f
+
+                            Card(
+                                modifier = Modifier
+                                    .padding(4.dp)
+                                    .aspectRatio(1.3f)
+                                    .offset(x = translationX.dp)
+                                    .border(
+                                        width = 4.dp,
+                                        color = when {
+                                            shakingIndex == index && isShakingCorrect -> Color.Green
+                                            shakingIndex == index && !isShakingCorrect -> Color.Red
+                                            else -> HH_Stroke
+                                        },
+                                        shape = RoundedCornerShape(24.dp)
+                                    )
+                                    .clickable {
+                                        if (shakingIndex != null) return@clickable
+                                        
+                                        val isCorrect = option == currentQuestion.correctAnswerImage
+                                        shakingIndex = index
+                                        isShakingCorrect = isCorrect
+                                        
+                                        if (!isCorrect) {
+                                            hasMistakeInCurrentLevel = true
+                                            score = (score - 5).coerceAtLeast(0) 
+                                        } else {
+                                            score += (100 / level.questions.size)
+                                        }
+                                        
+                                        scope.launch {
+                                            delay(if (isCorrect) 150 else 800)
+                                            shakingIndex = null
+                                            
+                                            if (currentQuestionIndex < level.questions.size - 1) {
+                                                currentQuestionIndex++
+                                            } else {
+                                                if (!hasMistakeInCurrentLevel && isCorrect) {
+                                                    score = 100
+                                                } else {
+                                                    score = score.coerceAtMost(95)
+                                                }
+                                                showFinalDialog = true
+                                            }
+                                        }
+                                    },
+                                shape = RoundedCornerShape(24.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = when {
+                                        shakingIndex == index && isShakingCorrect -> HH_Secondary
+                                        shakingIndex == index && !isShakingCorrect -> HH_Tertiary.copy(alpha = 0.5f)
+                                        else -> HH_Background
                                     }
-                                    showFinalDialog = true
+                                )
+                            ) {
+                                if (resId != 0) {
+                                    Image(
+                                        painter = painterResource(id = resId),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.fillMaxSize().padding(8.dp)
+                                    )
                                 }
                             }
-                        },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = when {
-                            shakingIndex == index && isShakingCorrect -> HH_Secondary
-                            shakingIndex == index && !isShakingCorrect -> HH_Tertiary.copy(alpha = 0.5f)
-                            else -> HH_Background
                         }
+                    }
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Rounded.ArrowBack, contentDescription = null, tint = HH_Headline)
+                    }
+                    Text("Pertanyaan ${currentQuestionIndex + 1}/${level.questions.size}", 
+                        modifier = Modifier.weight(1f), 
+                        textAlign = TextAlign.Center, 
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp,
+                        color = HH_Headline
                     )
+                    Spacer(modifier = Modifier.width(48.dp))
+                }
+                
+                LinearProgressIndicator(
+                    progress = (currentQuestionIndex + 1).toFloat() / level.questions.size,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(16.dp)
+                        .padding(vertical = 4.dp)
+                        .border(2.dp, HH_Stroke, RoundedCornerShape(8.dp)),
+                    color = HH_Button,
+                    trackColor = HH_Secondary
+                )
+                
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(3.dp, HH_Stroke, RoundedCornerShape(24.dp)),
+                    colors = CardDefaults.cardColors(containerColor = HH_Secondary),
+                    shape = RoundedCornerShape(24.dp)
                 ) {
-                    if (resId != 0) {
-                        Image(
-                            painter = painterResource(id = resId),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize().padding(16.dp)
-                        )
+                    Text(
+                        currentQuestion.text,
+                        fontSize = 42.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = HH_Headline,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(32.dp)
+                    )
+                }
+                
+                Text("Pilih Gambar yang Benar:", fontSize = 16.sp, color = HH_Headline, modifier = Modifier.padding(top = 24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1f)) {
+                    items(shuffledOptions.size) { index ->
+                        val option = shuffledOptions[index]
+                        val resId = context.resources.getIdentifier(option, "drawable", context.packageName)
+                        
+                        val translationX = if (shakingIndex == index) shakeAnim.value else 0f
+
+                        Card(
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .aspectRatio(1f)
+                                .offset(x = translationX.dp)
+                                .border(
+                                    width = 4.dp,
+                                    color = when {
+                                        shakingIndex == index && isShakingCorrect -> Color.Green
+                                        shakingIndex == index && !isShakingCorrect -> Color.Red
+                                        else -> HH_Stroke
+                                    },
+                                    shape = RoundedCornerShape(24.dp)
+                                )
+                                .clickable {
+                                    if (shakingIndex != null) return@clickable
+                                    
+                                    val isCorrect = option == currentQuestion.correctAnswerImage
+                                    shakingIndex = index
+                                    isShakingCorrect = isCorrect
+                                    
+                                    if (!isCorrect) {
+                                        hasMistakeInCurrentLevel = true
+                                        score = (score - 5).coerceAtLeast(0) 
+                                    } else {
+                                        score += (100 / level.questions.size)
+                                    }
+                                    
+                                    scope.launch {
+                                        delay(if (isCorrect) 150 else 800)
+                                        shakingIndex = null
+                                        
+                                        if (currentQuestionIndex < level.questions.size - 1) {
+                                            currentQuestionIndex++
+                                        } else {
+                                            if (!hasMistakeInCurrentLevel && isCorrect) {
+                                                score = 100
+                                            } else {
+                                                score = score.coerceAtMost(95)
+                                            }
+                                            showFinalDialog = true
+                                        }
+                                    }
+                                },
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = when {
+                                    shakingIndex == index && isShakingCorrect -> HH_Secondary
+                                    shakingIndex == index && !isShakingCorrect -> HH_Tertiary.copy(alpha = 0.5f)
+                                    else -> HH_Background
+                                }
+                            )
+                        ) {
+                            if (resId != 0) {
+                                Image(
+                                    painter = painterResource(id = resId),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize().padding(8.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -659,10 +850,12 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
 
 @Composable
 fun ScannerScreen(onBack: () -> Unit) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
-    var detectedText by remember { mutableStateOf("") }
+    var detectedText by rememberSaveable { mutableStateOf("") }
     val executor = remember { Executors.newSingleThreadExecutor() }
     val recognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
 
@@ -771,17 +964,26 @@ fun ScannerScreen(onBack: () -> Unit) {
 
         // UI Overlay
         if (detectedText.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .size(width = 280.dp, height = 180.dp)
-                    .align(Alignment.Center)
-                    .border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            Column(
+                modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    "Arahkan ke kata",
-                    color = Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier.align(Alignment.TopCenter).padding(8.dp),
-                    fontSize = 12.sp
+                Surface(
+                    color = HH_Background.copy(alpha = 0.9f),
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.border(4.dp, HH_Stroke, RoundedCornerShape(24.dp))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("1️⃣ Arahkan ke Kata", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = HH_Headline)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("2️⃣ Lihat Isyarat Muncul!", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = HH_Headline)
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                Box(
+                    modifier = Modifier
+                        .size(width = if (isLandscape) 200.dp else 280.dp, height = if (isLandscape) 120.dp else 180.dp)
+                        .border(4.dp, HH_Button, RoundedCornerShape(24.dp))
                 )
             }
         }
@@ -841,7 +1043,7 @@ fun ScannerScreen(onBack: () -> Unit) {
                             contentDescription = null,
                             modifier = Modifier
                                 .offset(y = translateY.dp)
-                                .size(200.dp) // Ukuran sedikit lebih besar untuk video/gif
+                                .size(if (isLandscape) 120.dp else 200.dp) // Ukuran sedikit lebih besar untuk video/gif
                         )
                     }
                 }
@@ -849,15 +1051,15 @@ fun ScannerScreen(onBack: () -> Unit) {
                 // Tambahkan tombol untuk reset deteksi
                 Button(
                     onClick = { detectedText = "" },
-                    modifier = Modifier.padding(top = 16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    modifier = Modifier.padding(top = 16.dp).border(2.dp, HH_Stroke, RoundedCornerShape(50)),
+                    colors = ButtonDefaults.buttonColors(containerColor = HH_Button, contentColor = HH_ButtonText)
                 ) {
-                    Text("Scan Lagi")
+                    Text("Coba Kata Lain")
                 }
             }
         }
         IconButton(onClick = onBack, modifier = Modifier.padding(16.dp).align(Alignment.TopStart)) { 
-            Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White) 
+            Icon(Icons.Rounded.ArrowBack, contentDescription = null, tint = Color.White) 
         }
     }
 }
@@ -870,10 +1072,16 @@ fun RiwayatScreen(
     onResetAll: () -> Unit,
     onDeleteRecord: (HistoryRecord) -> Unit
 ) {
-    var showConfirmAll1 by remember { mutableStateOf(false) }
-    var showConfirmAll2 by remember { mutableStateOf(false) }
-    var recordToDelete by remember { mutableStateOf<HistoryRecord?>(null) }
-    var selectedLevelFilter by remember { mutableStateOf<Int?>(null) }
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
+    var showConfirmAll1 by rememberSaveable { mutableStateOf(false) }
+    var showConfirmAll2 by rememberSaveable { mutableStateOf(false) }
+    var recordToDelete by rememberSaveable { mutableStateOf<HistoryRecord?>(null) }
+    var selectedLevelFilter by rememberSaveable { mutableStateOf<Int?>(null) }
 
     val levelColors = listOf(
         HH_Button,
@@ -883,31 +1091,32 @@ fun RiwayatScreen(
         HH_Button
     )
 
-    Column(modifier = Modifier.fillMaxSize().background(HH_Background).padding(16.dp)) {
-        val displayHistory = if (selectedLevelFilter == null) history else history.filter { it.levelId == selectedLevelFilter }
+    Box(modifier = Modifier.fillMaxSize().padding(if (isLandscape) 8.dp else 16.dp).alpha(if (visible) 1f else 0f)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            val displayHistory = if (selectedLevelFilter == null) history else history.filter { it.levelId == selectedLevelFilter }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Riwayat Nilai", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = HH_Headline)
+            Text("Riwayat Nilai", fontSize = if (isLandscape) 24.sp else 32.sp, fontWeight = FontWeight.ExtraBold, color = HH_Headline)
             IconButton(onClick = { showConfirmAll1 = true }) { 
-                Icon(Icons.Default.DeleteForever, null, tint = HH_Tertiary, modifier = Modifier.size(32.dp)) 
+                Icon(Icons.Rounded.DeleteForever, null, tint = HH_Tertiary, modifier = Modifier.size(if (isLandscape) 24.dp else 32.dp)) 
             }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(if (isLandscape) 8.dp else 16.dp))
 
         // Box List Filter Level
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Filter "Semua"
             Surface(
                 onClick = { selectedLevelFilter = null },
-                modifier = Modifier.weight(1.5f).height(48.dp).border(2.dp, HH_Stroke, RoundedCornerShape(12.dp)),
+                modifier = Modifier.weight(1.5f).height(if (isLandscape) 40.dp else 48.dp).border(2.dp, HH_Stroke, RoundedCornerShape(12.dp)),
                 shape = RoundedCornerShape(12.dp),
                 color = if (selectedLevelFilter == null) HH_Button else HH_Secondary,
             ) {
@@ -925,7 +1134,7 @@ fun RiwayatScreen(
             (1..5).forEach { levelId ->
                 Surface(
                     onClick = { selectedLevelFilter = levelId },
-                    modifier = Modifier.weight(1f).height(48.dp).border(2.dp, HH_Stroke, RoundedCornerShape(12.dp)),
+                    modifier = Modifier.weight(1f).height(if (isLandscape) 40.dp else 48.dp).border(2.dp, HH_Stroke, RoundedCornerShape(12.dp)),
                     shape = RoundedCornerShape(12.dp),
                     color = if (selectedLevelFilter == levelId) HH_Button else HH_Secondary,
                 ) {
@@ -943,19 +1152,19 @@ fun RiwayatScreen(
         
         // Grafik Kemajuan Anak (Barchart)
         Card(
-            modifier = Modifier.fillMaxWidth().height(240.dp).border(3.dp, HH_Stroke, RoundedCornerShape(24.dp)),
+            modifier = Modifier.fillMaxWidth().height(if (isLandscape) 160.dp else 240.dp).border(3.dp, HH_Stroke, RoundedCornerShape(24.dp)),
             colors = CardDefaults.cardColors(containerColor = HH_Secondary),
             shape = RoundedCornerShape(24.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 val chartTitle = if (selectedLevelFilter == null) "Grafik Kemajuan" else "Grafik Level $selectedLevelFilter"
-                Text(chartTitle, fontWeight = FontWeight.ExtraBold, color = HH_Headline, fontSize = 18.sp)
+                Text(chartTitle, color = HH_Headline, fontSize = 18.sp)
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 if (displayHistory.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Belum ada data nilai", color = HH_Headline.copy(alpha = 0.5f), fontWeight = FontWeight.Bold)
+                        Text("Belum ada data nilai", color = HH_Headline.copy(alpha = 0.5f))
                     }
                 } else {
                     Box(modifier = Modifier.fillMaxSize().padding(top = 8.dp)) {
@@ -986,7 +1195,7 @@ fun RiwayatScreen(
                                     val x = (index.toFloat() / (recentHistory.size.coerceAtLeast(1))) * canvasWidth + (canvasWidth / (recentHistory.size * 2))
                                     val y = canvasHeight - barHeight * animationProgress.value
                                     
-                                    val color = HH_Button
+                                    val color = levelColors.getOrElse(record.levelId - 1) { HH_Button }
                                     
                                     drawRoundRect(
                                         color = color,
@@ -1012,7 +1221,7 @@ fun RiwayatScreen(
                             verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             listOf("100", "75", "50", "25", "0").forEach { score ->
-                                Text(score, fontSize = 10.sp, color = HH_Headline, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp), textAlign = TextAlign.End)
+                                Text(score, fontSize = 10.sp, color = HH_Headline, modifier = Modifier.width(30.dp), textAlign = TextAlign.End)
                             }
                         }
                         
@@ -1043,19 +1252,19 @@ fun RiwayatScreen(
             items(displayHistory.reversed()) { record ->
                 val name = levels.find { it.id == record.levelId }?.name ?: "Level ${record.levelId}"
                 Card(
-                    modifier = Modifier.fillMaxWidth().border(2.dp, HH_Stroke, RoundedCornerShape(16.dp)),
+                    modifier = Modifier.fillMaxWidth().border(2.dp, HH_Stroke, RoundedCornerShape(24.dp)),
                     colors = CardDefaults.cardColors(containerColor = HH_Secondary.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(24.dp)
                 ) {
                     ListItem(
                         headlineText = { Text(name, fontWeight = FontWeight.ExtraBold, color = HH_Headline) },
-                        supportingText = { Text("Skor: ${record.score}", fontWeight = FontWeight.Bold, color = HH_Headline.copy(alpha = 0.7f)) },
+                        supportingText = { Text("Skor: ${record.score}", color = HH_Headline.copy(alpha = 0.7f)) },
                         leadingContent = { 
-                            Icon(Icons.Default.Star, contentDescription = null, tint = HH_Button, modifier = Modifier.size(32.dp)) 
+                            Icon(Icons.Rounded.Star, contentDescription = null, tint = HH_Button, modifier = Modifier.size(32.dp)) 
                         },
                         trailingContent = {
                             IconButton(onClick = { recordToDelete = record }) {
-                                Icon(Icons.Default.DeleteOutline, contentDescription = "Hapus Riwayat", tint = HH_Tertiary)
+                                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Hapus Riwayat", tint = HH_Tertiary)
                             }
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
@@ -1117,20 +1326,40 @@ fun RiwayatScreen(
         )
     }
 }
+}
 
 @Composable
 fun PengaturanScreen(onAboutClick: () -> Unit, onThemeChanged: () -> Unit) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
     val context = LocalContext.current
     val sharedPreferences = remember { context.getSharedPreferences("theme_prefs", android.content.Context.MODE_PRIVATE) }
 
-    Column(modifier = Modifier.fillMaxSize().background(HH_Background).padding(16.dp)) {
-        Text("Pengaturan", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = HH_Headline)
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(
+            initialOffsetY = { it / 2 },
+            animationSpec = tween(1000, easing = LinearOutSlowInEasing)
+        ) + fadeIn(animationSpec = tween(1000))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(if (isLandscape) 8.dp else 16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Text("Pengaturan", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = HH_Headline)
+
         Spacer(modifier = Modifier.height(24.dp))
         
         Text("Tampilan & Tema", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = HH_Headline, modifier = Modifier.padding(bottom = 8.dp))
         Card(
-            modifier = Modifier.fillMaxWidth().border(3.dp, HH_Stroke, RoundedCornerShape(20.dp)),
-            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.fillMaxWidth().border(3.dp, HH_Stroke, RoundedCornerShape(24.dp)),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = HH_Secondary)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -1140,26 +1369,26 @@ fun PengaturanScreen(onAboutClick: () -> Unit, onThemeChanged: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Palette, contentDescription = null, tint = HH_Headline)
+                        Icon(if (sharedPreferences.getInt("theme_index", 0) == 1) Icons.Rounded.DarkMode else Icons.Rounded.LightMode, contentDescription = null, tint = HH_Headline)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("Ganti Tema Warna", fontWeight = FontWeight.Bold, color = HH_Headline)
+                        Text("Mode Gelap", fontWeight = FontWeight.Bold, color = HH_Headline)
                     }
-                    Button(
-                        onClick = {
-                            val themes = ThemeColors.getAll()
-                            val currentIndex = sharedPreferences.getInt("theme_index", 0)
-                            val nextIndex = (currentIndex + 1) % themes.size
-                            
-                            sharedPreferences.edit().putInt("theme_index", nextIndex).apply()
-                            updateThemeColors(themes[nextIndex])
+                    val currentIndex = sharedPreferences.getInt("theme_index", 0)
+                    Switch(
+                        checked = currentIndex == 1,
+                        onCheckedChange = { isDark ->
+                            val newIndex = if (isDark) 1 else 0
+                            sharedPreferences.edit().putInt("theme_index", newIndex).apply()
+                            updateThemeColors(ThemeColors.getAll()[newIndex])
                             onThemeChanged()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = HH_Button),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.border(2.dp, HH_Stroke, RoundedCornerShape(12.dp))
-                    ) {
-                        Text("Ganti", color = HH_ButtonText)
-                    }
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = HH_Button,
+                            checkedTrackColor = HH_Headline.copy(alpha = 0.3f),
+                            uncheckedThumbColor = HH_Headline,
+                            uncheckedTrackColor = HH_Headline.copy(alpha = 0.3f)
+                        )
+                    )
                 }
             }
         }
@@ -1168,8 +1397,8 @@ fun PengaturanScreen(onAboutClick: () -> Unit, onThemeChanged: () -> Unit) {
         
         Text("Data & Aplikasi", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = HH_Headline, modifier = Modifier.padding(bottom = 8.dp))
         Card(
-            modifier = Modifier.fillMaxWidth().border(3.dp, HH_Stroke, RoundedCornerShape(20.dp)),
-            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.fillMaxWidth().border(3.dp, HH_Stroke, RoundedCornerShape(24.dp)),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = HH_Secondary)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -1186,11 +1415,11 @@ fun PengaturanScreen(onAboutClick: () -> Unit, onThemeChanged: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = HH_Headline)
+                        Icon(Icons.Rounded.DeleteSweep, contentDescription = null, tint = HH_Headline)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("Hapus Cache", fontWeight = FontWeight.Bold, color = HH_Headline)
                     }
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = HH_Headline)
+                    Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = HH_Headline)
                 }
 
                 Divider(modifier = Modifier.padding(vertical = 12.dp), color = HH_Stroke.copy(alpha = 0.2f), thickness = 2.dp)
@@ -1203,11 +1432,11 @@ fun PengaturanScreen(onAboutClick: () -> Unit, onThemeChanged: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = HH_Headline)
+                        Icon(Icons.Rounded.Info, contentDescription = null, tint = HH_Headline)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("Tentang Aplikasi", fontWeight = FontWeight.Bold, color = HH_Headline)
                     }
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = HH_Headline)
+                    Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = HH_Headline)
                 }
 
                 Divider(modifier = Modifier.padding(vertical = 12.dp), color = HH_Stroke.copy(alpha = 0.2f), thickness = 2.dp)
@@ -1220,7 +1449,7 @@ fun PengaturanScreen(onAboutClick: () -> Unit, onThemeChanged: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = HH_Headline)
+                        Icon(Icons.Rounded.Info, contentDescription = null, tint = HH_Headline)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("Versi Aplikasi", fontWeight = FontWeight.Bold, color = HH_Headline)
                     }
@@ -1230,46 +1459,58 @@ fun PengaturanScreen(onAboutClick: () -> Unit, onThemeChanged: () -> Unit) {
         }
     }
 }
+}
 
 @Composable
 fun TentangKamiScreen() {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
     val context = LocalContext.current
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(HH_Background)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .alpha(if (visible) 1f else 0f)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.icon_app),
-            contentDescription = null,
-            modifier = Modifier.size(120.dp)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.icon_app),
+                contentDescription = null,
+                modifier = Modifier.size(if (isLandscape) 60.dp else 100.dp)
+            )
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             "Isyarat Pintar",
-            fontSize = 32.sp,
+            fontSize = if (isLandscape) 20.sp else 28.sp,
             fontWeight = FontWeight.ExtraBold,
             color = HH_Headline
         )
         Text("Versi 1.0.0", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = HH_Button)
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             "Platform edukasi interaktif belajar bahasa isyarat dengan teknologi AR untuk anak-anak.",
             textAlign = TextAlign.Center,
-            fontSize = 16.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             color = HH_Headline,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         
-        Column(modifier = Modifier.weight(1f)) {
+        Column {
             ContactItem(
-                icon = Icons.Default.Phone,
+                icon = Icons.Rounded.Phone,
                 label = "WhatsApp",
                 value = "0813-9982-0510",
                 onClick = {
@@ -1279,7 +1520,7 @@ fun TentangKamiScreen() {
             )
             
             ContactItem(
-                icon = Icons.Default.Code,
+                icon = Icons.Rounded.Code,
                 label = "GitHub",
                 value = "Isyarat Pintar",
                 onClick = {
@@ -1289,7 +1530,7 @@ fun TentangKamiScreen() {
             )
             
             ContactItem(
-                icon = Icons.Default.Email,
+                icon = Icons.Rounded.Email,
                 label = "Email",
                 value = "gerkatinpusat@gmail.com",
                 onClick = {
@@ -1299,8 +1540,10 @@ fun TentangKamiScreen() {
             )
         }
         
-        Text("© 2024 Isyarat Pintar Team", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = HH_Headline.copy(alpha = 0.5f), modifier = Modifier.padding(top = 8.dp))
+        
+        Text("© 2024 Isyarat Pintar Team", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = HH_Headline.copy(alpha = 0.5f), modifier = Modifier.padding(top = 4.dp))
     }
+}
 }
 
 @Composable
@@ -1309,9 +1552,9 @@ fun ContactItem(icon: ImageVector, label: String, value: String, onClick: () -> 
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .border(2.dp, HH_Stroke, RoundedCornerShape(16.dp))
+            .border(2.dp, HH_Stroke, RoundedCornerShape(24.dp))
             .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = HH_Secondary)
     ) {
         Row(
@@ -1325,7 +1568,7 @@ fun ContactItem(icon: ImageVector, label: String, value: String, onClick: () -> 
                 Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = HH_Headline)
             }
             Spacer(modifier = Modifier.weight(1f))
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = HH_Headline)
+            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = HH_Headline)
         }
     }
 }

@@ -18,13 +18,15 @@ data class Level(
     val questions: List<Question>,
     var isUnlocked: Boolean = false,
     var isCompleted: Boolean = false,
-    var score: Int = 0
+    var score: Int = 0,
+    val icon: String = ""
 ) : Parcelable
 
+@Parcelize
 data class HistoryRecord(
     val id: String = java.util.UUID.randomUUID().toString(),
     val levelId: Int,
     val levelName: String = "",
     val score: Int,
     val timestamp: Long = System.currentTimeMillis()
-)
+) : Parcelable
