@@ -1085,8 +1085,8 @@ fun RiwayatScreen(
 
     val levelColors = listOf(
         HH_Button,
-        HH_Secondary,
-        HH_Tertiary,
+        HH_Headline,
+        HH_Button,
         HH_Headline,
         HH_Button
     )
@@ -1443,7 +1443,7 @@ fun PengaturanScreen(onAboutClick: () -> Unit, onThemeChanged: () -> Unit) {
 
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable {
-                        Toast.makeText(context, "Versi 1.0.0 (Android 16 Optimized)", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Versi 1.0.0 (Terbaru)", Toast.LENGTH_SHORT).show()
                     },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -1453,7 +1453,7 @@ fun PengaturanScreen(onAboutClick: () -> Unit, onThemeChanged: () -> Unit) {
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("Versi Aplikasi", fontWeight = FontWeight.Bold, color = HH_Headline)
                     }
-                    Text("1.0.0", fontWeight = FontWeight.ExtraBold, color = HH_Button)
+                    Text("Terbaru", fontWeight = FontWeight.ExtraBold, color = HH_Button)
                 }
             }
         }
