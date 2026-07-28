@@ -1018,9 +1018,7 @@ fun ScannerScreen(onBack: () -> Unit) {
                         }
                         context.resources.getIdentifier(name, "raw", context.packageName)
                     } else {
-                        val scanResId = context.resources.getIdentifier("scan_$detectedText", "drawable", context.packageName)
-                        if (scanResId != 0) scanResId
-                        else context.resources.getIdentifier("sign_$detectedText", "drawable", context.packageName)
+                        context.resources.getIdentifier("sign_$detectedText", "drawable", context.packageName)
                     }
                     if (resId != 0) {
                         val imageLoader = ImageLoader.Builder(context)
