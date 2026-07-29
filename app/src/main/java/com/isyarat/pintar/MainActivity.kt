@@ -671,10 +671,34 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                             fontSize = 18.sp,
                             color = HH_Headline
                         )
-                        if (timeLeft == 0) {
-                            IconButton(onClick = { showHint = true }) {
-                                Icon(Icons.Rounded.Lightbulb, contentDescription = "Hint", tint = Color.Yellow)
+                        AnimatedVisibility(
+                            visible = timeLeft == 0,
+                            enter = fadeIn() + scaleIn(initialScale = 0.5f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)),
+                            exit = fadeOut() + scaleOut()
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                IconButton(
+                                    onClick = { showHint = true },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Lightbulb,
+                                        contentDescription = "Hint",
+                                        tint = HH_Headline,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Text(
+                                    "BANTUAN",
+                                    color = HH_Headline,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier.offset(y = (-4).dp)
+                                )
                             }
+                        }
+                        if (timeLeft > 0) {
+                            Spacer(modifier = Modifier.width(48.dp))
                         }
                     }
                     
@@ -820,11 +844,33 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                         fontSize = 18.sp,
                         color = HH_Headline
                     )
-                    if (timeLeft == 0) {
-                        IconButton(onClick = { showHint = true }) {
-                            Icon(Icons.Rounded.Lightbulb, contentDescription = "Hint", tint = Color.Yellow)
+                    AnimatedVisibility(
+                        visible = timeLeft == 0,
+                        enter = fadeIn() + scaleIn(initialScale = 0.5f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)),
+                        exit = fadeOut() + scaleOut()
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            IconButton(
+                                onClick = { showHint = true },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Lightbulb,
+                                    contentDescription = "Hint",
+                                    tint = HH_Headline,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Text(
+                                "BANTUAN",
+                                color = HH_Headline,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.offset(y = (-4).dp)
+                            )
                         }
-                    } else {
+                    }
+                    if (timeLeft > 0) {
                         Spacer(modifier = Modifier.width(48.dp))
                     }
                 }
