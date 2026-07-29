@@ -7,9 +7,12 @@ import kotlinx.parcelize.Parcelize
 data class Question(
     val id: Int,
     val text: String,
-    val correctAnswerImage: String,
+    val correctAnswerImages: List<String>,
     val options: List<String>
-) : Parcelable
+) : Parcelable {
+    // Helper to get a random correct image if multiple are available
+    fun getCorrectAnswerImage(): String = correctAnswerImages.random()
+}
 
 @Parcelize
 data class Level(

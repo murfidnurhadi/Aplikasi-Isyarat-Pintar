@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -167,6 +168,13 @@ fun MainApp() {
 
     var restartKey by rememberSaveable { mutableStateOf(0) }
     
+    // Handler Tombol Back
+    BackHandler(enabled = currentScreen != "beranda") {
+        if (currentScreen == "riwayat" || currentScreen == "pengaturan" || currentScreen == "scanner" || currentScreen == "quiz") {
+            currentScreen = "beranda"
+        }
+    }
+    
     var fabVisible by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(currentScreen) {
         if (currentScreen == "beranda") {
@@ -197,23 +205,30 @@ fun MainApp() {
                         val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
                         if (!(currentScreen == "beranda" && isLandscape)) {
-                            CenterAlignedTopAppBar(
-                                title = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Image(
-                                            painter = painterResource(id = R.drawable.icon_app),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(32.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Isyarat Pintar", fontWeight = FontWeight.ExtraBold, color = HH_Headline)
-                                    }
-                                },
-                                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                                    containerColor = Color.Transparent,
-                                    titleContentColor = HH_Headline
+                            Column {
+                                CenterAlignedTopAppBar(
+                                    title = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Image(
+                                                painter = painterResource(id = R.drawable.icon_app),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Isyarat Pintar", fontWeight = FontWeight.ExtraBold, color = HH_Headline)
+                                        }
+                                    },
+                                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                                        containerColor = Color.Transparent,
+                                        titleContentColor = HH_Headline
+                                    )
                                 )
-                            )
+                                Divider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    thickness = 2.dp,
+                                    color = HH_Headline.copy(alpha = 0.2f)
+                                )
+                            }
                         }
                     }
                 },
@@ -234,21 +249,39 @@ fun MainApp() {
                                 onClick = { currentScreen = "beranda" },
                                 icon = { Icon(Icons.Rounded.Home, null) },
                                 label = { Text("Beranda", fontWeight = FontWeight.Bold, fontSize = if (isLandscape) 11.sp else 14.sp) },
-                                colors = NavigationBarItemDefaults.colors(selectedIconColor = HH_Button, unselectedIconColor = HH_Headline, indicatorColor = HH_Button.copy(alpha = 0.2f))
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = HH_Headline,
+                                    unselectedIconColor = HH_Headline.copy(alpha = 0.5f),
+                                    selectedTextColor = HH_Headline,
+                                    unselectedTextColor = HH_Headline.copy(alpha = 0.5f),
+                                    indicatorColor = HH_NavIndicator
+                                )
                             )
                             NavigationBarItem(
                                 selected = currentScreen == "riwayat",
                                 onClick = { currentScreen = "riwayat" },
                                 icon = { Icon(Icons.Rounded.History, null) },
                                 label = { Text("Riwayat", fontWeight = FontWeight.Bold, fontSize = if (isLandscape) 11.sp else 14.sp) },
-                                colors = NavigationBarItemDefaults.colors(selectedIconColor = HH_Button, unselectedIconColor = HH_Headline, indicatorColor = HH_Button.copy(alpha = 0.2f))
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = HH_Headline,
+                                    unselectedIconColor = HH_Headline.copy(alpha = 0.5f),
+                                    selectedTextColor = HH_Headline,
+                                    unselectedTextColor = HH_Headline.copy(alpha = 0.5f),
+                                    indicatorColor = HH_NavIndicator
+                                )
                             )
                             NavigationBarItem(
                                 selected = currentScreen == "pengaturan",
                                 onClick = { currentScreen = "pengaturan" },
                                 icon = { Icon(Icons.Rounded.Settings, null) },
                                 label = { Text("Pengaturan", fontWeight = FontWeight.Bold, fontSize = if (isLandscape) 11.sp else 14.sp) },
-                                colors = NavigationBarItemDefaults.colors(selectedIconColor = HH_Button, unselectedIconColor = HH_Headline, indicatorColor = HH_Button.copy(alpha = 0.2f))
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = HH_Headline,
+                                    unselectedIconColor = HH_Headline.copy(alpha = 0.5f),
+                                    selectedTextColor = HH_Headline,
+                                    unselectedTextColor = HH_Headline.copy(alpha = 0.5f),
+                                    indicatorColor = HH_NavIndicator
+                                )
                             )
                         }
                     }
@@ -299,12 +332,16 @@ fun MainApp() {
                                         
                                         val levelIndex = levelsState.indexOfFirst { it.id == level.id }
                                         if (levelIndex != -1) {
+                                            // Selalu gunakan skor terbaru sebagai nilai saat ini
                                             levelsState[levelIndex] = levelsState[levelIndex].copy(
-                                                score = maxOf(levelsState[levelIndex].score, finalScore),
+                                                score = finalScore,
                                                 isCompleted = true
                                             )
-                                            if (finalScore > 10 && levelIndex + 1 < levelsState.size) {
-                                                levelsState[levelIndex + 1] = levelsState[levelIndex + 1].copy(isUnlocked = true)
+                                            // Update status unlock level selanjutnya: terbuka jika > 25, terkunci jika <= 25
+                                            if (levelIndex + 1 < levelsState.size) {
+                                                levelsState[levelIndex + 1] = levelsState[levelIndex + 1].copy(
+                                                    isUnlocked = finalScore > 25
+                                                )
                                             }
                                         }
                                         currentScreen = "beranda"
@@ -336,7 +373,7 @@ fun MainApp() {
                                     
                                     if (levelIndex + 1 < levelsState.size) {
                                         levelsState[levelIndex + 1] = levelsState[levelIndex + 1].copy(
-                                            isUnlocked = maxScore > 10
+                                            isUnlocked = maxScore > 25
                                         )
                                     }
                                 }
@@ -479,7 +516,6 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
     var showFinalDialog by rememberSaveable { mutableStateOf(false) }
     var shakingIndex by remember { mutableStateOf<Int?>(null) }
     var isShakingCorrect by remember { mutableStateOf(true) }
-    var hasMistakeInCurrentLevel by rememberSaveable { mutableStateOf(false) }
     
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -507,6 +543,7 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
 
     if (showFinalDialog) {
         val isPerfect = score >= 100
+        val canUnlockNext = score > 25
         AlertDialog(
             onDismissRequest = { },
             containerColor = HH_Background,
@@ -515,7 +552,7 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
             modifier = Modifier.border(4.dp, HH_Stroke, RoundedCornerShape(28.dp)),
             title = {
                     Text(
-                        if (isPerfect) "HEBAT SEKALI!" else "YUK, COBA LAGI!",
+                        if (isPerfect) "HEBAT SEKALI!" else if (canUnlockNext) "BAGUS!" else "YUK, COBA LAGI!",
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
                         fontSize = 32.sp,
@@ -552,7 +589,7 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                             if (isPerfect) {
                                 Text("🎉", fontSize = 56.sp, modifier = Modifier.align(Alignment.TopStart).offset(x = (-40).dp, y = (emojiOffset - 30).dp))
                                 Text("🎊", fontSize = 56.sp, modifier = Modifier.align(Alignment.TopEnd).offset(x = 40.dp, y = (emojiOffset - 30).dp))
-                            } else {
+                            } else if (!canUnlockNext) {
                                 Text("😢", fontSize = 56.sp, modifier = Modifier.align(Alignment.TopStart).offset(x = (-40).dp, y = (emojiOffset - 30).dp))
                                 Text("☹️", fontSize = 56.sp, modifier = Modifier.align(Alignment.TopEnd).offset(x = 40.dp, y = (emojiOffset - 30).dp))
                             }
@@ -572,9 +609,9 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Kamu telah menyelesaikan level ini!", textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     Text("Nilai Kamu: $score", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = HH_Button)
-                    if (!isPerfect) {
+                    if (!canUnlockNext) {
                         Text(
-                            "Dapatkan nilai 100 untuk membuka level berikutnya!",
+                            "Jawab minimal 2 soal benar untuk membuka level berikutnya!",
                             textAlign = TextAlign.Center,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
@@ -674,15 +711,13 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                     .clickable {
                                         if (shakingIndex != null) return@clickable
                                         
-                                        val isCorrect = option == currentQuestion.correctAnswerImage
+                                    val isCorrect = currentQuestion.correctAnswerImages.contains(option)
                                         shakingIndex = index
                                         isShakingCorrect = isCorrect
                                         
-                                        if (!isCorrect) {
-                                            hasMistakeInCurrentLevel = true
-                                            score = (score - 5).coerceAtLeast(0) 
-                                        } else {
-                                            score += (100 / level.questions.size)
+                                        if (isCorrect) {
+                                            val pointsPerQuestion = 100 / level.questions.size
+                                            score += pointsPerQuestion
                                         }
                                         
                                         scope.launch {
@@ -692,11 +727,6 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                             if (currentQuestionIndex < level.questions.size - 1) {
                                                 currentQuestionIndex++
                                             } else {
-                                                if (!hasMistakeInCurrentLevel && isCorrect) {
-                                                    score = 100
-                                                } else {
-                                                    score = score.coerceAtMost(95)
-                                                }
                                                 showFinalDialog = true
                                             }
                                         }
@@ -796,15 +826,13 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                 .clickable {
                                     if (shakingIndex != null) return@clickable
                                     
-                                    val isCorrect = option == currentQuestion.correctAnswerImage
+                                    val isCorrect = currentQuestion.correctAnswerImages.contains(option)
                                     shakingIndex = index
                                     isShakingCorrect = isCorrect
                                     
-                                    if (!isCorrect) {
-                                        hasMistakeInCurrentLevel = true
-                                        score = (score - 5).coerceAtLeast(0) 
-                                    } else {
-                                        score += (100 / level.questions.size)
+                                    if (isCorrect) {
+                                        val pointsPerQuestion = 100 / level.questions.size
+                                        score += pointsPerQuestion
                                     }
                                     
                                     scope.launch {
@@ -814,11 +842,6 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                         if (currentQuestionIndex < level.questions.size - 1) {
                                             currentQuestionIndex++
                                         } else {
-                                            if (!hasMistakeInCurrentLevel && isCorrect) {
-                                                score = 100
-                                            } else {
-                                                score = score.coerceAtMost(95)
-                                            }
                                             showFinalDialog = true
                                         }
                                     }
@@ -1100,7 +1123,7 @@ fun RiwayatScreen(
         ) {
             Text("Riwayat Nilai", fontSize = if (isLandscape) 24.sp else 32.sp, fontWeight = FontWeight.ExtraBold, color = HH_Headline)
             IconButton(onClick = { showConfirmAll1 = true }) { 
-                Icon(Icons.Rounded.DeleteForever, null, tint = HH_Tertiary, modifier = Modifier.size(if (isLandscape) 24.dp else 32.dp)) 
+                Icon(Icons.Rounded.DeleteForever, null, tint = HH_Button, modifier = Modifier.size(if (isLandscape) 24.dp else 32.dp)) 
             }
         }
         
@@ -1255,14 +1278,14 @@ fun RiwayatScreen(
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     ListItem(
-                        headlineText = { Text(name, fontWeight = FontWeight.ExtraBold, color = HH_Headline) },
-                        supportingText = { Text("Skor: ${record.score}", color = HH_Headline.copy(alpha = 0.7f)) },
+                        headlineContent = { Text(name, fontWeight = FontWeight.ExtraBold, color = HH_Headline) },
+                        supportingContent = { Text("Skor: ${record.score}", color = HH_Headline.copy(alpha = 0.7f)) },
                         leadingContent = { 
                             Icon(Icons.Rounded.Star, contentDescription = null, tint = HH_Button, modifier = Modifier.size(32.dp)) 
                         },
                         trailingContent = {
                             IconButton(onClick = { recordToDelete = record }) {
-                                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Hapus Riwayat", tint = HH_Tertiary)
+                                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Hapus Riwayat", tint = HH_Button)
                             }
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
@@ -1282,10 +1305,10 @@ fun RiwayatScreen(
                 TextButton(onClick = { 
                     onDeleteRecord(recordToDelete!!)
                     recordToDelete = null 
-                }) { Text("Hapus", color = HH_Tertiary) }
+                }) { Text("Hapus", color = HH_Button) }
             },
             dismissButton = {
-                TextButton(onClick = { recordToDelete = null }) { Text("Batal") }
+                TextButton(onClick = { recordToDelete = null }) { Text("Batal", color = HH_Button) }
             }
         )
     }
@@ -1299,10 +1322,10 @@ fun RiwayatScreen(
                 TextButton(onClick = { 
                     showConfirmAll1 = false
                     showConfirmAll2 = true 
-                }) { Text("Ya") }
+                }) { Text("Ya", color = HH_Button) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmAll1 = false }) { Text("Batal") }
+                TextButton(onClick = { showConfirmAll1 = false }) { Text("Batal", color = HH_Button) }
             }
         )
     }
@@ -1316,10 +1339,10 @@ fun RiwayatScreen(
                 TextButton(onClick = { 
                     onResetAll()
                     showConfirmAll2 = false 
-                }) { Text("HAPUS SEMUA", color = HH_Tertiary) }
+                }) { Text("HAPUS SEMUA", color = HH_Button) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmAll2 = false }) { Text("Batal") }
+                TextButton(onClick = { showConfirmAll2 = false }) { Text("Batal", color = HH_Button) }
             }
         )
     }
@@ -1413,9 +1436,9 @@ fun PengaturanScreen(onAboutClick: () -> Unit, onThemeChanged: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.DeleteSweep, contentDescription = null, tint = HH_Headline)
+                        Icon(Icons.Rounded.DeleteSweep, contentDescription = null, tint = HH_Button)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("Hapus Cache", fontWeight = FontWeight.Bold, color = HH_Headline)
+                        Text("Hapus Cache", fontWeight = FontWeight.Bold, color = HH_Button)
                     }
                     Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = HH_Headline)
                 }

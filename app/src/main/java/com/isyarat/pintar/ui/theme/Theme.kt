@@ -35,9 +35,11 @@ fun IsyaratPintarTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            // Jika warna primary terang, gunakan ikon gelap di status bar
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = colorScheme.primary.luminance() > 0.5f
+            window.statusBarColor = HH_Background.toArgb()
+            window.navigationBarColor = HH_Secondary.toArgb()
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = HH_Background.luminance() > 0.5f
+            insetsController.isAppearanceLightNavigationBars = HH_Secondary.luminance() > 0.5f
         }
     }
 

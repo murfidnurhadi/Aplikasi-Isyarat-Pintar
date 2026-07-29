@@ -11,7 +11,8 @@ sealed class ThemeColors(
     val secondary: Color,
     val button: Color,
     val buttonText: Color,
-    val stroke: Color
+    val stroke: Color,
+    val navIndicator: Color
 ) {
     object PaletteLight : ThemeColors(
         background = Color(0xFFE3F2FD), // Biru langit ceria
@@ -19,7 +20,8 @@ sealed class ThemeColors(
         secondary = Color(0xFFFFF9C4), // Kuning cerah pastel
         button = Color(0xFFFF9800), // Oranye mencolok
         buttonText = Color(0xFFFFFFFF), // Putih
-        stroke = Color.Transparent // Border dihilangkan (modern)
+        stroke = Color.Transparent, // Border dihilangkan (modern)
+        navIndicator = Color(0xFFFF9800) // Oranye untuk Light Mode
     )
 
     object PaletteDark : ThemeColors(
@@ -28,7 +30,8 @@ sealed class ThemeColors(
         secondary = Color(0xFF2C2C2C), // Abu-abu gelap untuk card
         button = Color(0xFFFF9800), // Oranye ceria
         buttonText = Color(0xFF1E1E1E), // Teks gelap di tombol
-        stroke = Color.Transparent // Border dihilangkan
+        stroke = Color.Transparent, // Border dihilangkan
+        navIndicator = Color(0xFF0D47A1) // Biru Tua untuk Dark Mode
     )
 
     companion object {
@@ -45,6 +48,7 @@ var HH_Secondary = ThemeColors.PaletteLight.secondary
 var HH_Tertiary = ThemeColors.PaletteLight.secondary
 var HH_Stroke = ThemeColors.PaletteLight.stroke
 var HH_Highlight = ThemeColors.PaletteLight.button
+var HH_NavIndicator = ThemeColors.PaletteLight.navIndicator
 
 fun updateThemeColors(theme: ThemeColors) {
     HH_Background = theme.background
@@ -56,5 +60,5 @@ fun updateThemeColors(theme: ThemeColors) {
     HH_Tertiary = theme.secondary
     HH_Stroke = theme.stroke
     HH_Highlight = theme.button
+    HH_NavIndicator = theme.navIndicator
 }
-
