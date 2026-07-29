@@ -33,8 +33,8 @@ object IsyaratData {
             isUnlocked = false,
             icon = "level_tiga",
             questions = listOf(
-                Question(10, "PAGI", listOf("sign_pagi", "sign_pagi_tadi"), listOf("sign_pagi", "sign_pagi_tadi", "sign_sarapan", "sign_ayam", "sign_sayur")),
-                Question(11, "TADI", listOf("sign_pagi_tadi"), listOf("sign_pagi_tadi", "sign_pagi", "sign_saya", "sign_makan")),
+                Question(10, "PAGI", listOf("sign_pagi", "sign_pagi_tadi"), listOf("sign_pagi", "sign_pagi_tadi", "sign_sarapan", "sign_ayam")),
+                Question(11, "TADI", listOf("sign_tadi"), listOf("sign_tadi", "sign_pagi", "sign_saya", "sign_makan")),
                 Question(12, "SAYA", listOf("sign_saya"), listOf("sign_saya", "sign_ibu", "sign_ayah", "sign_kakak")),
                 Question(13, "MAKAN", listOf("sign_makan"), listOf("sign_makan", "sign_sarapan", "sign_ayam", "sign_sayur")),
                 Question(14, "AYAM", listOf("sign_ayam"), listOf("sign_ayam", "sign_sayur", "sign_makan", "sign_goreng")),

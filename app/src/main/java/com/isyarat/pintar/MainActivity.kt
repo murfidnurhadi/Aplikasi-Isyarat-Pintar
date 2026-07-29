@@ -513,9 +513,30 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var currentQuestionIndex by rememberSaveable { mutableStateOf(0) }
     var score by rememberSaveable { mutableStateOf(0) }
+    var correctCount by rememberSaveable { mutableStateOf(0) }
     var showFinalDialog by rememberSaveable { mutableStateOf(false) }
     var shakingIndex by remember { mutableStateOf<Int?>(null) }
     var isShakingCorrect by remember { mutableStateOf(true) }
+    var timeLeft by rememberSaveable { mutableStateOf(20) }
+    var showHint by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentQuestionIndex, level.id) {
+        timeLeft = 20
+        showHint = false
+        while (timeLeft > 0) {
+            delay(1000)
+            timeLeft--
+        }
+    }
+    
+    val hintScale by animateFloatAsState(
+        targetValue = if (showHint) 1.1f else 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "hintScale"
+    )
     
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -650,6 +671,11 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                             fontSize = 18.sp,
                             color = HH_Headline
                         )
+                        if (timeLeft == 0) {
+                            IconButton(onClick = { showHint = true }) {
+                                Icon(Icons.Rounded.Lightbulb, contentDescription = "Hint", tint = Color.Yellow)
+                            }
+                        }
                     }
                     
                     LinearProgressIndicator(
@@ -693,17 +719,21 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                             val option = shuffledOptions[index]
                             val resId = context.resources.getIdentifier(option, "drawable", context.packageName)
                             val translationX = if (shakingIndex == index) shakeAnim.value else 0f
+                            val isCorrectOption = currentQuestion.correctAnswerImages.contains(option)
+                            val scale = if (showHint && isCorrectOption) hintScale else 1f
 
                             Card(
                                 modifier = Modifier
                                     .padding(4.dp)
                                     .aspectRatio(1.3f)
+                                    .scale(scale)
                                     .offset(x = translationX.dp)
                                     .border(
                                         width = 4.dp,
                                         color = when {
                                             shakingIndex == index && isShakingCorrect -> Color.Green
                                             shakingIndex == index && !isShakingCorrect -> Color.Red
+                                            showHint && isCorrectOption -> Color.Yellow
                                             else -> HH_Stroke
                                         },
                                         shape = RoundedCornerShape(24.dp)
@@ -716,8 +746,32 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                         isShakingCorrect = isCorrect
                                         
                                         if (isCorrect) {
-                                            val pointsPerQuestion = 100 / level.questions.size
-                                            score += pointsPerQuestion
+                                            correctCount++
+                                            score = when (level.id) {
+                                                3 -> when (correctCount) {
+                                                    1 -> 5
+                                                    2 -> 10
+                                                    3 -> 30
+                                                    4 -> 45
+                                                    5 -> 70
+                                                    6 -> 85
+                                                    7 -> 100
+                                                    else -> score
+                                                }
+                                                5 -> when (correctCount) {
+                                                    1 -> 10
+                                                    2 -> 20
+                                                    3 -> 40
+                                                    4 -> 60
+                                                    5 -> 80
+                                                    6 -> 100
+                                                    else -> score
+                                                }
+                                                else -> {
+                                                    val pointsPerQuestion = 100 / level.questions.size
+                                                    correctCount * pointsPerQuestion
+                                                }
+                                            }
                                         }
                                         
                                         scope.launch {
@@ -766,7 +820,13 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                         fontSize = 18.sp,
                         color = HH_Headline
                     )
-                    Spacer(modifier = Modifier.width(48.dp))
+                    if (timeLeft == 0) {
+                        IconButton(onClick = { showHint = true }) {
+                            Icon(Icons.Rounded.Lightbulb, contentDescription = "Hint", tint = Color.Yellow)
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(48.dp))
+                    }
                 }
                 
                 LinearProgressIndicator(
@@ -808,17 +868,21 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                         val resId = context.resources.getIdentifier(option, "drawable", context.packageName)
                         
                         val translationX = if (shakingIndex == index) shakeAnim.value else 0f
+                        val isCorrectOption = currentQuestion.correctAnswerImages.contains(option)
+                        val scale = if (showHint && isCorrectOption) hintScale else 1f
 
                         Card(
                             modifier = Modifier
                                 .padding(8.dp)
                                 .aspectRatio(1f)
+                                .scale(scale)
                                 .offset(x = translationX.dp)
                                 .border(
                                     width = 4.dp,
                                     color = when {
                                         shakingIndex == index && isShakingCorrect -> Color.Green
                                         shakingIndex == index && !isShakingCorrect -> Color.Red
+                                        showHint && isCorrectOption -> Color.Yellow
                                         else -> HH_Stroke
                                     },
                                     shape = RoundedCornerShape(24.dp)
@@ -831,8 +895,32 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                     isShakingCorrect = isCorrect
                                     
                                     if (isCorrect) {
-                                        val pointsPerQuestion = 100 / level.questions.size
-                                        score += pointsPerQuestion
+                                        correctCount++
+                                        score = when (level.id) {
+                                            3 -> when (correctCount) {
+                                                1 -> 5
+                                                2 -> 10
+                                                3 -> 30
+                                                4 -> 45
+                                                5 -> 70
+                                                6 -> 85
+                                                7 -> 100
+                                                else -> score
+                                            }
+                                            5 -> when (correctCount) {
+                                                1 -> 10
+                                                2 -> 20
+                                                3 -> 40
+                                                4 -> 60
+                                                5 -> 80
+                                                6 -> 100
+                                                else -> score
+                                            }
+                                            else -> {
+                                                val pointsPerQuestion = 100 / level.questions.size
+                                                correctCount * pointsPerQuestion
+                                            }
+                                        }
                                     }
                                     
                                     scope.launch {
