@@ -684,13 +684,13 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                     Icon(
                                         Icons.Rounded.Lightbulb,
                                         contentDescription = "Hint",
-                                        tint = HH_Headline,
+                                        tint = Color(0xFFFF9800),
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
                                 Text(
                                     "BANTUAN",
-                                    color = HH_Headline,
+                                    color = Color(0xFFFF9800),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     modifier = Modifier.offset(y = (-4).dp)
@@ -857,13 +857,13 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                 Icon(
                                     Icons.Rounded.Lightbulb,
                                     contentDescription = "Hint",
-                                    tint = HH_Headline,
+                                    tint = Color(0xFFFF9800),
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
                             Text(
                                 "BANTUAN",
-                                color = HH_Headline,
+                                color = Color(0xFFFF9800),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 modifier = Modifier.offset(y = (-4).dp)
