@@ -195,16 +195,6 @@ fun MainApp() {
 
     key(restartKey) {
         Box(modifier = Modifier.fillMaxSize().background(HH_Background)) {
-            // Global Background Image with 20% Alpha - Fills entire screen
-            Image(
-                painter = painterResource(id = R.drawable.background_app),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(0.2f)
-            )
-
             Scaffold(
                 containerColor = Color.Transparent,
                 topBar = {
@@ -214,7 +204,7 @@ fun MainApp() {
 
                         if (!(currentScreen == "beranda" && isLandscape)) {
                             Column {
-                                CenterAlignedTopAppBar(
+                                TopAppBar(
                                     title = {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Image(
@@ -223,10 +213,10 @@ fun MainApp() {
                                                 modifier = Modifier.size(32.dp)
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text("Isyarat Pintar", fontWeight = FontWeight.ExtraBold, color = HH_Headline)
+                                            Text("Isyarat Aplikasi", fontWeight = FontWeight.ExtraBold, color = HH_Headline)
                                         }
                                     },
-                                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                                    colors = TopAppBarDefaults.topAppBarColors(
                                         containerColor = Color.Transparent,
                                         titleContentColor = HH_Headline
                                     )
@@ -447,7 +437,7 @@ fun BerandaScreen(levels: List<Level>, onLevelClick: (Level) -> Unit) {
                         modifier = Modifier.size(28.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Isyarat Pintar", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = HH_Headline)
+                    Text("Isyarat Aplikasi", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = HH_Headline)
                     Spacer(modifier = Modifier.weight(1f))
                     Text("Halo, Ayo Pilih Permainanmu!", fontSize = 14.sp, color = HH_Headline.copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
                 }
