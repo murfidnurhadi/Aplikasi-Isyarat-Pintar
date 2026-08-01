@@ -105,7 +105,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
 
     LaunchedEffect(key1 = true) {
         startAnimation = true
-        delay(2000)
+        delay(2500)
         onTimeout()
     }
 
@@ -117,23 +117,31 @@ fun SplashScreen(onTimeout: () -> Unit) {
     ) {
         AnimatedVisibility(
             visible = startAnimation,
-            enter = slideInVertically(
-                initialOffsetY = { it },
-                animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(1000))
+            enter = fadeIn(animationSpec = tween(800)) + scaleIn(
+                initialScale = 0.5f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            ),
+            exit = fadeOut(animationSpec = tween(600))
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // Langsung tampilkan Image tanpa container Box agar tidak ada efek border
                 Image(
                     painter = painterResource(id = R.drawable.icon_app),
                     contentDescription = "Logo",
-                    modifier = Modifier.size(200.dp)
+                    modifier = Modifier
+                        .size(240.dp)
+                        .padding(16.dp)
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
                     "Isyarat Pintar",
-                    fontSize = 40.sp,
+                    fontSize = 44.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = HH_Headline
+                    color = HH_Headline,
+                    letterSpacing = 2.sp
                 )
             }
         }
@@ -332,15 +340,25 @@ fun MainApp() {
                                         
                                         val levelIndex = levelsState.indexOfFirst { it.id == level.id }
                                         if (levelIndex != -1) {
-                                            // Selalu gunakan skor terbaru sebagai nilai saat ini
                                             levelsState[levelIndex] = levelsState[levelIndex].copy(
                                                 score = finalScore,
                                                 isCompleted = true
                                             )
-                                            // Update status unlock level selanjutnya: terbuka jika > 25, terkunci jika <= 25
-                                            if (levelIndex + 1 < levelsState.size) {
+                                            
+                                            if (finalScore <= 25) {
+                                                // Cascade lock and history clear
+                                                for (i in (levelIndex + 1) until levelsState.size) {
+                                                    val subLevelId = levelsState[i].id
+                                                    levelsState[i] = levelsState[i].copy(
+                                                        isUnlocked = false,
+                                                        isCompleted = false,
+                                                        score = 0
+                                                    )
+                                                    historyState.removeAll { it.levelId == subLevelId }
+                                                }
+                                            } else if (levelIndex + 1 < levelsState.size) {
                                                 levelsState[levelIndex + 1] = levelsState[levelIndex + 1].copy(
-                                                    isUnlocked = finalScore > 25
+                                                    isUnlocked = true
                                                 )
                                             }
                                         }
@@ -371,9 +389,20 @@ fun MainApp() {
                                         isCompleted = levelHistory.isNotEmpty()
                                     )
                                     
-                                    if (levelIndex + 1 < levelsState.size) {
+                                    if (maxScore <= 25) {
+                                        // Cascade lock and history clear
+                                        for (i in (levelIndex + 1) until levelsState.size) {
+                                            val subLevelId = levelsState[i].id
+                                            levelsState[i] = levelsState[i].copy(
+                                                isUnlocked = false,
+                                                isCompleted = false,
+                                                score = 0
+                                            )
+                                            historyState.removeAll { it.levelId == subLevelId }
+                                        }
+                                    } else if (levelIndex + 1 < levelsState.size) {
                                         levelsState[levelIndex + 1] = levelsState[levelIndex + 1].copy(
-                                            isUnlocked = maxScore > 25
+                                            isUnlocked = true
                                         )
                                     }
                                 }
@@ -518,21 +547,27 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
     var shakingIndex by remember { mutableStateOf<Int?>(null) }
     var isShakingCorrect by remember { mutableStateOf(true) }
     var timeLeft by rememberSaveable { mutableStateOf(20) }
-    var showHint by remember { mutableStateOf(false) }
+    var showHint by rememberSaveable { mutableStateOf(false) }
+    var lastQuestionIndex by rememberSaveable { mutableStateOf(-1) }
 
     LaunchedEffect(currentQuestionIndex, level.id) {
-        timeLeft = 20
-        showHint = false
+        if (lastQuestionIndex != currentQuestionIndex) {
+            timeLeft = 20
+            showHint = false
+            lastQuestionIndex = currentQuestionIndex
+        }
         while (timeLeft > 0) {
             delay(1000)
             timeLeft--
         }
     }
     
-    val hintScale by animateFloatAsState(
-        targetValue = if (showHint) 1.1f else 1f,
+    val infiniteTransition = rememberInfiniteTransition(label = "hintPulse")
+    val hintScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = LinearEasing),
+            animation = tween(600, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "hintScale"
@@ -578,7 +613,7 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         fontSize = 32.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (isPerfect) HH_Button else HH_Tertiary
+                        color = HH_Button
                     )
             },
             text = {
@@ -630,9 +665,9 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Kamu telah menyelesaikan level ini!", textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     Text("Nilai Kamu: $score", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = HH_Button)
-                    if (!canUnlockNext) {
+                    if (!canUnlockNext && level.id < 5) {
                         Text(
-                            "Jawab minimal 2 soal benar untuk membuka level berikutnya!",
+                            "Dapatkan skor lebih dari 25 untuk membuka level berikutnya!",
                             textAlign = TextAlign.Center,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
@@ -799,7 +834,7 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                         }
                                         
                                         scope.launch {
-                                            delay(if (isCorrect) 150 else 800)
+                                            delay(if (isCorrect) 600 else 800)
                                             shakingIndex = null
                                             
                                             if (currentQuestionIndex < level.questions.size - 1) {
@@ -970,7 +1005,7 @@ fun QuizScreen(level: Level, onFinished: (Int) -> Unit, onBack: () -> Unit) {
                                     }
                                     
                                     scope.launch {
-                                        delay(if (isCorrect) 150 else 800)
+                                        delay(if (isCorrect) 600 else 800)
                                         shakingIndex = null
                                         
                                         if (currentQuestionIndex < level.questions.size - 1) {
@@ -1247,7 +1282,7 @@ fun RiwayatScreen(
     )
 
     Box(modifier = Modifier.fillMaxSize().padding(if (isLandscape) 8.dp else 16.dp).alpha(if (visible) 1f else 0f)) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             val displayHistory = if (selectedLevelFilter == null) history else history.filter { it.levelId == selectedLevelFilter }
 
         Row(
@@ -1403,8 +1438,8 @@ fun RiwayatScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(displayHistory.reversed()) { record ->
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            displayHistory.reversed().forEach { record ->
                 val name = levels.find { it.id == record.levelId }?.name ?: "Level ${record.levelId}"
                 Card(
                     modifier = Modifier.fillMaxWidth().border(2.dp, HH_Stroke, RoundedCornerShape(24.dp)),
@@ -1696,7 +1731,7 @@ fun TentangKamiScreen() {
         }
         
         
-        Text("© 2024 Isyarat Pintar Team", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = HH_Headline.copy(alpha = 0.5f), modifier = Modifier.padding(top = 4.dp))
+        Text("© 2026 Isyarat Pintar Team", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = HH_Headline.copy(alpha = 0.5f), modifier = Modifier.padding(top = 4.dp))
     }
 }
 }
